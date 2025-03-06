@@ -24,9 +24,13 @@ func main() {
 	// Инициализация Fiber
 	app := fiber.New()
 
+	// Инициализация репозиториев
+	userRepo := repository.NewUserRepository(db)
+	todoRepo := repository.NewTodoRepository(db)
+
 	// Инициализация обработчиков
-	todoHandler := handlers.NewTodoHandler(db)
-	userHandler := handlers.NewUserHandler(db)
+	todoHandler := handlers.NewTodoHandler(todoRepo)
+	userHandler := handlers.NewUserHandler(userRepo)
 
 	// Публичные маршруты (без авторизации)
 	app.Post("/users/register", userHandler.Register)

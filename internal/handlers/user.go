@@ -4,7 +4,6 @@ import (
 	"TODO-list/internal/models"
 	"TODO-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"regexp"
 )
@@ -13,8 +12,8 @@ type UserHandler struct {
 	repo *repository.UserRepository
 }
 
-func NewUserHandler(db *pgxpool.Pool) *UserHandler {
-	return &UserHandler{repo: repository.NewUserRepository(db)}
+func NewUserHandler(repo *repository.UserRepository) *UserHandler {
+	return &UserHandler{repo: repo}
 }
 
 // Register обрабатывает регистрацию нового пользователя
