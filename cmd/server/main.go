@@ -3,6 +3,7 @@ package main
 import (
 	"TODO-list/internal/config"
 	"TODO-list/internal/handlers"
+	"TODO-list/internal/middleware"
 	"TODO-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
 	"log"
@@ -25,12 +26,22 @@ func main() {
 
 	// Инициализация обработчиков
 	todoHandler := handlers.NewTodoHandler(db)
+	userHandler := handlers.NewUserHandler(db)
 
-	// Маршруты
-	app.Get("/tasks", todoHandler.GetTodos)
-	app.Post("/tasks", todoHandler.CreateTodo)
-	app.Put("/tasks/:id", todoHandler.UpdateTodo)
-	app.Delete("/tasks/:id", todoHandler.DeleteTodo)
+	// Публичные маршруты (без авторизации)
+	app.Post("/users/register", userHandler.Register)
+	app.Post("/users/login", userHandler.Login)
+
+	// Защищенные маршруты (требуют авторизации)
+	api := app.Group("/api", middleware.AuthMiddleware())
+
+	// Маршруты для задач
+	api.Get("/tasks", todoHandler.GetTodos)
+	api.Post("/tasks", todoHandler.CreateTodo)
+	api.Put("/tasks/:id", todoHandler.UpdateTodo)
+	api.Delete("/tasks/:id", todoHandler.DeleteTodo)
+	api.Get("/tasks/:id", todoHandler.GetTodoByID)
+	api.Get("/tasks/grouped", todoHandler.GetGroupedTodos)
 
 	// Запуск сервера
 	log.Fatal(app.Listen(":3000"))
