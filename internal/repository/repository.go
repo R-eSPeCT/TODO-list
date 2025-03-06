@@ -38,3 +38,13 @@ func createSchema(db *pgxpool.Pool) error {
 	}
 	return nil
 }
+
+type UserRepository struct {
+	// fields
+}
+
+func NewUserRepository() *UserRepository {
+	return &UserRepository{
+		// initialize fields
+	}
+}

@@ -135,3 +135,13 @@ func (h TodoHandler) GetTodoByID(c *fiber.Ctx) error {
 
 	return c.JSON(todo)
 }
+
+// GetGroupedTodos обрабатывает GET-запрос для получения сгруппированных задач.
+func (h TodoHandler) GetGroupedTodos(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(int)
+	groups, err := h.repo.GetGroupedTodos(userID)
+	if err != nil {
+		return c.Status(500).SendString(err.Error())
+	}
+	return c.JSON(groups)
+}
