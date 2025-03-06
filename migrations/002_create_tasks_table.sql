@@ -6,8 +6,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed')),
     priority VARCHAR(10) NOT NULL CHECK (priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT tasks_pkey PRIMARY KEY (id, user_id)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 --индексы для оптимизации запросов

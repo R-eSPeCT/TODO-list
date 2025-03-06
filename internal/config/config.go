@@ -12,7 +12,7 @@ type Config struct {
 // LoadConfig загружает конфигурацию из переменных среды
 func LoadConfig() *Config {
 	return &Config{
-		DatabaseURL: getEnvOrDefault("DATABASE_URL", "postgres://tododb:tododb@localhost:5432/tododb?sslmode=disable"),
+		DatabaseURL: getEnvOrDefault("DATABASE_URL", "postgres://postgres:Salamander0101@localhost:5432/tododb?sslmode=disable"),
 	}
 }
 

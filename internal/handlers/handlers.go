@@ -4,7 +4,6 @@ import (
 	"TODO-list/internal/models"
 	"TODO-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
-	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 // TodoHandler представляет собой обработчик HTTP-запросов для работы с задачами (Todo).
