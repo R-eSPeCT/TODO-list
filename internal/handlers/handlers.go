@@ -12,9 +12,9 @@ type TodoHandler struct {
 	repo *repository.TodoRepository // Репозиторий для взаимодействия с базой данных
 }
 
-// NewTodoHandler создает новый экземпляр TodoHandler с использованием пула соединений к базе данных.
-func NewTodoHandler(db *pgxpool.Pool) *TodoHandler {
-	return &TodoHandler{repo: repository.NewTodoRepository(db)}
+// NewTodoHandler создает новый экземпляр TodoHandler с использованием репозитория.
+func NewTodoHandler(repo *repository.TodoRepository) *TodoHandler {
+	return &TodoHandler{repo: repo}
 }
 
 // GetTodos обрабатывает GET-запрос для получения списка всех задач пользователя.
