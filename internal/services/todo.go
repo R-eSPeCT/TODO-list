@@ -1,12 +1,13 @@
 package services
 
 import (
-	"TODO-list/internal/repository
+	"TODO-list/internal/models"
+	"TODO-list/internal/repository"
 	"context"
 	"errors"
 	"github.com/google/uuid"
 	"time"
-	"TODO-list/internal/models"
+)
 
 type todoService struct {
 	repo repository.TodoRepository
@@ -38,6 +39,11 @@ func (s *todoService) Create(ctx context.Context, todo *models.Todo) error {
 		todo.Status = "new"
 	}
 
+	// Установка приоритета по умолчанию
+	if todo.Priority == "" {
+		todo.Priority = "medium"
+	}
+
 	return s.repo.Create(ctx, todo)
 }
 
@@ -54,9 +60,12 @@ func (s *todoService) Update(ctx context.Context, todo *models.Todo) error {
 		return errors.New("title is required")
 	}
 
-	// Проверка валидности статуса
+	// Проверка валидности статуса и приоритета
 	if !isValidStatus(todo.Status) {
 		return errors.New("invalid status")
+	}
+	if !isValidPriority(todo.Priority) {
+		return errors.New("invalid priority")
 	}
 
 	// Обновление времени изменения
@@ -69,11 +78,25 @@ func (s *todoService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
 
-// Вспомогательная функция для проверки статуса
+func (s *todoService) GetGroupedTodos(ctx context.Context, userID uuid.UUID) ([]models.TodoGroup, error) {
+	return s.repo.GetGroupedTodos(ctx, userID)
+}
+
+// Вспомогательные функции для валидации
 func isValidStatus(status string) bool {
 	validStatuses := []string{"new", "in_progress", "done"}
 	for _, s := range validStatuses {
 		if status == s {
+			return true
+		}
+	}
+	return false
+}
+
+func isValidPriority(priority string) bool {
+	validPriorities := []string{"low", "medium", "high"}
+	for _, p := range validPriorities {
+		if priority == p {
 			return true
 		}
 	}
