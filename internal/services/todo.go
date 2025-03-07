@@ -1,13 +1,12 @@
 package services
 
 import (
+	"TODO-list/internal
 	"context"
 	"errors"
 	"github.com/google/uuid"
 	"time"
-	"vacancy/internal/models"
-	"vacancy/internal/repository"
-)
+	"TODO-list/internal/models"
 
 type todoService struct {
 	repo repository.TodoRepository

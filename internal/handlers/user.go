@@ -4,48 +4,79 @@ import (
 	"TODO-list/internal/models"
 	"TODO-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"golang.org/x/crypto/bcrypt"
 	"regexp"
+	"time"
 )
 
 type UserHandler struct {
-	repo *repository.UserRepository
+	repo repository.UserRepository
 }
 
-func NewUserHandler(repo *repository.UserRepository) *UserHandler {
+func NewUserHandler(repo repository.UserRepository) *UserHandler {
 	return &UserHandler{repo: repo}
 }
 
 // Register обрабатывает регистрацию нового пользователя
 func (h UserHandler) Register(c *fiber.Ctx) error {
-	var user models.UserCreate
-	if err := c.BodyParser(&user); err != nil {
+	var userCreate models.UserCreate
+	if err := c.BodyParser(&userCreate); err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Invalid request body",
 		})
 	}
 
-	// Валидация полей
-	if err := validateUserCreate(user); err != nil {
+	if err := validateUserCreate(userCreate); err != nil {
 		return c.Status(400).JSON(fiber.Map{
 			"error": err.Error(),
 		})
 	}
 
-	newUser, err := h.repo.CreateUser(user)
+	// Проверяем, не существует ли уже пользователь с таким email
+	existingUser, err := h.repo.GetByEmail(c.Context(), userCreate.Email)
+	if err != nil && err != pgx.ErrNoRows {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to check email uniqueness",
+		})
+	}
+	if existingUser != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "User with this email already exists",
+		})
+	}
+
+	// Создаем нового пользователя
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userCreate.Password), bcrypt.DefaultCost)
 	if err != nil {
-		// Проверяем на уникальные ограничения
-		if isUniqueViolation(err) {
-			return c.Status(400).JSON(fiber.Map{
-				"error": "User with this email or username already exists",
-			})
-		}
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Failed to process password",
+		})
+	}
+
+	user := &models.User{
+		ID:           uuid.New(),
+		Username:     userCreate.Username,
+		Email:        userCreate.Email,
+		PasswordHash: string(hashedPassword),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	if err := h.repo.Create(c.Context(), user); err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Failed to create user",
 		})
 	}
 
-	return c.Status(201).JSON(newUser)
+	return c.Status(201).JSON(&models.UserResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	})
 }
 
 // Login обрабатывает вход пользователя
@@ -57,34 +88,31 @@ func (h UserHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Валидация email
 	if !isValidEmail(login.Email) {
 		return c.Status(400).JSON(fiber.Map{
 			"error": "Invalid email format",
 		})
 	}
 
-	user, err := h.repo.GetUserByEmail(login.Email)
+	user, err := h.repo.GetByEmail(c.Context(), login.Email)
 	if err != nil {
 		return c.Status(401).JSON(fiber.Map{
 			"error": "Invalid credentials",
 		})
 	}
 
-	// Проверяем пароль
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(login.Password)); err != nil {
 		return c.Status(401).JSON(fiber.Map{
 			"error": "Invalid credentials",
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"message": "Login successful",
-		"user": fiber.Map{
-			"id":       user.ID,
-			"username": user.Username,
-			"email":    user.Email,
-		},
+	return c.JSON(&models.UserResponse{
+		ID:        user.ID,
+		Username:  user.Username,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	})
 }
 
