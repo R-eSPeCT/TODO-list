@@ -1,10 +1,10 @@
 package services
 
 import (
+	"TODO-list/internal/models"
+	"TODO-list/internal/repository"
 	"context"
 	"github.com/google/uuid"
-	"vacancy/internal/models"
-	"vacancy/internal/repository"
 )
 
 type Services struct {

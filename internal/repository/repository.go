@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"TODO-lis
+	"TODO-list/internal/models"
 	"context"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"

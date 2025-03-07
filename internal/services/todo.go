@@ -1,7 +1,7 @@
 package services
 
 import (
-	"TODO-list/internal
+	"TODO-list/internal/repository
 	"context"
 	"errors"
 	"github.com/google/uuid"
