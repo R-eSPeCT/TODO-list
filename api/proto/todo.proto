@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package todo;
+
+option go_package = "TODO-list/api/proto/todo";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Сервис для работы с задачами
+service TodoService {
+    // Создание новой задачи
+    rpc CreateTodo(CreateTodoRequest) returns (TodoResponse);
+    // Получение задачи по ID
+    rpc GetTodo(GetTodoRequest) returns (TodoResponse);
+    // Обновление задачи
+    rpc UpdateTodo(UpdateTodoRequest) returns (TodoResponse);
+    // Удаление задачи
+    rpc DeleteTodo(DeleteTodoRequest) returns (google.protobuf.Empty);
+    // Получение списка задач
+    rpc ListTodos(ListTodosRequest) returns (ListTodosResponse);
+    // Получение сгруппированных задач
+    rpc GetGroupedTodos(GetGroupedTodosRequest) returns (GroupedTodosResponse);
+    // Стриминг обновлений задач
+    rpc WatchTodos(WatchTodosRequest) returns (stream TodoResponse);
+}
+
+// Запрос на создание задачи
+message CreateTodoRequest {
+    string title = 1;
+    string description = 2;
+    string user_id = 3;
+    string status = 4;
+    string priority = 5;
+}
+
+// Запрос на получение задачи
+message GetTodoRequest {
+    string id = 1;
+    string user_id = 2;
+}
+
+// Запрос на обновление задачи
+message UpdateTodoRequest {
+    string id = 1;
+    string user_id = 2;
+    string title = 3;
+    string description = 4;
+    string status = 5;
+    string priority = 6;
+}
+
+// Запрос на удаление задачи
+message DeleteTodoRequest {
+    string id = 1;
+    string user_id = 2;
+}
+
+// Запрос на получение списка задач
+message ListTodosRequest {
+    string user_id = 1;
+    int32 page = 2;
+    int32 per_page = 3;
+}
+
+// Запрос на получение сгруппированных задач
+message GetGroupedTodosRequest {
+    string user_id = 1;
+}
+
+// Запрос на отслеживание задач
+message WatchTodosRequest {
+    string user_id = 1;
+}
+
+// Ответ с задачей
+message TodoResponse {
+    string id = 1;
+    string user_id = 2;
+    string title = 3;
+    string description = 4;
+    string status = 5;
+    string priority = 6;
+    google.protobuf.Timestamp created_at = 7;
+    google.protobuf.Timestamp updated_at = 8;
+}
+
+// Ответ со списком задач
+message ListTodosResponse {
+    repeated TodoResponse todos = 1;
+    int32 total = 2;
+}
+
+// Группа задач
+message TodoGroup {
+    string status = 1;
+    string priority = 2;
+    int32 count = 3;
+    repeated TodoResponse todos = 4;
+}
+
+// Ответ со сгруппированными задачами
+message GroupedTodosResponse {
+    repeated TodoGroup groups = 1;
+} 

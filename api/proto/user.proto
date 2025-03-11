@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "TODO-list/api/proto/user";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Сервис для работы с пользователями
+service UserService {
+    // Регистрация нового пользователя
+    rpc Register(RegisterRequest) returns (UserResponse);
+    // Вход пользователя
+    rpc Login(LoginRequest) returns (AuthResponse);
+    // Получение информации о пользователе
+    rpc GetUser(GetUserRequest) returns (UserResponse);
+    // Обновление информации о пользователе
+    rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+    // Удаление пользователя
+    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+    // Обновление токена
+    rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse);
+}
+
+// Запрос на регистрацию
+message RegisterRequest {
+    string username = 1;
+    string email = 2;
+    string password = 3;
+}
+
+// Запрос на вход
+message LoginRequest {
+    string email = 1;
+    string password = 2;
+}
+
+// Запрос на получение информации о пользователе
+message GetUserRequest {
+    string id = 1;
+}
+
+// Запрос на обновление пользователя
+message UpdateUserRequest {
+    string id = 1;
+    string username = 2;
+    string email = 3;
+}
+
+// Запрос на удаление пользователя
+message DeleteUserRequest {
+    string id = 1;
+}
+
+// Запрос на обновление токена
+message RefreshTokenRequest {
+    string refresh_token = 1;
+}
+
+// Ответ с информацией о пользователе
+message UserResponse {
+    string id = 1;
+    string username = 2;
+    string email = 3;
+    google.protobuf.Timestamp created_at = 4;
+    google.protobuf.Timestamp updated_at = 5;
+}
+
+// Ответ с токенами авторизации
+message AuthResponse {
+    string access_token = 1;
+    string refresh_token = 2;
+    string token_type = 3;
+    int64 expires_in = 4;
+    UserResponse user = 5;
+} 
