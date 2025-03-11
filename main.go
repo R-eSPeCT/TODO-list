@@ -1,8 +1,12 @@
 package main
 
 import (
+	"TODO-list/internal/config"
 	"TODO-list/internal/handlers"
+	"TODO-list/internal/middleware"
 	"TODO-list/internal/repository"
+	"TODO-list/internal/services"
+	"TODO-list/pkg/cache"
 	"context"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -10,61 +14,76 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"
 	"os"
+	"time"
 )
 
 func main() {
-	// Инициализация подключения к базе данных
+	// Загрузка конфигурации Redis
+	redisConfig := config.NewRedisConfig()
+
+	// Инициализация Redis
+	redisCache, err := cache.NewRedisCache(redisConfig)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisCache.Close()
+
+	// Подключение к базе данных
 	dbpool, err := pgxpool.Connect(context.Background(), os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		log.Fatalf("Unable to connect to database: %v", err)
 	}
 	defer dbpool.Close()
 
 	// Инициализация репозиториев
-	repos, err := repository.NewRepositories(dbpool)
-	if err != nil {
-		log.Fatalf("Failed to initialize repositories: %v\n", err)
-	}
+	repos := repository.NewRepositories(dbpool)
+
+	// Инициализация сервисов
+	services := services.NewServices(repos)
 
 	// Инициализация обработчиков
-	todoHandler := handlers.NewTodoHandler(repos.Todo)
-	userHandler := handlers.NewUserHandler(repos.User)
+	handlers := handlers.NewHandler(services)
 
-	// Создание экземпляра Fiber
-	app := fiber.New(fiber.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			return c.Status(code).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		},
-	})
+	// Создание Fiber приложения
+	app := fiber.New()
 
 	// Middleware
 	app.Use(logger.New())
 	app.Use(cors.New())
 
-	// Маршруты для пользователей
-	users := app.Group("/api/users")
-	users.Post("/register", userHandler.Register)
-	users.Post("/login", userHandler.Login)
+	// Rate limiting для API endpoints
+	apiLimiter := middleware.RateLimit(redisCache, middleware.RateLimitConfig{
+		Max:       100,       // 100 запросов
+		Duration:  time.Hour, // за 1 час
+		KeyPrefix: "rate_limit_api",
+	})
 
-	// Маршруты для задач (требуют аутентификации)
-	todos := app.Group("/api/todos")
-	todos.Get("/", todoHandler.GetTodos)
-	todos.Post("/", todoHandler.CreateTodo)
-	todos.Get("/grouped", todoHandler.GetGroupedTodos)
-	todos.Get("/:id", todoHandler.GetTodoByID)
-	todos.Put("/:id", todoHandler.UpdateTodo)
-	todos.Delete("/:id", todoHandler.DeleteTodo)
+	// Rate limiting для аутентификации
+	authLimiter := middleware.RateLimit(redisCache, middleware.RateLimitConfig{
+		Max:       5,                // 5 попыток
+		Duration:  15 * time.Minute, // за 15 минут
+		KeyPrefix: "rate_limit_auth",
+	})
+
+	// Роуты для пользователей
+	users := app.Group("/api/users")
+	users.Post("/register", handlers.Register)
+	users.Post("/login", authLimiter, handlers.Login)
+
+	// Роуты для задач с rate limiting
+	todos := app.Group("/api/todos", apiLimiter)
+	todos.Get("/", handlers.GetTodos)
+	todos.Post("/", handlers.CreateTodo)
+	todos.Get("/grouped", handlers.GetGroupedTodos)
+	todos.Get("/:id", handlers.GetTodoByID)
+	todos.Put("/:id", handlers.UpdateTodo)
+	todos.Delete("/:id", handlers.DeleteTodo)
 
 	// Запуск сервера
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
 	}
+
 	log.Fatal(app.Listen(":" + port))
 }
