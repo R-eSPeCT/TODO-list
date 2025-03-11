@@ -4,12 +4,14 @@ go 1.21
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.5.0
 	github.com/jackc/pgx/v4 v4.18.1
 	github.com/redis/go-redis/v9 v9.4.0
 	golang.org/x/crypto v0.19.0
 	google.golang.org/grpc v1.61.0
 	google.golang.org/protobuf v1.32.0
+	google.golang.org/genproto v0.0.0-20240205150955-31a09d347014
 )
 
 require (

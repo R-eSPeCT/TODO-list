@@ -9,6 +9,10 @@
 *.so
 *.dylib
 
+# Generated files
+api/proto/todo/*.pb.go
+api/proto/user/*.pb.go
+
 # Environment variables
 .env
 
