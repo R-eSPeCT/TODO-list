@@ -11,16 +11,21 @@ import (
 	"strings"
 )
 
-// Connect устанавливает соединение с базой данных
+// Connect создает подключение к базе данных PostgreSQL
 func Connect(databaseURL string) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.Connect(context.Background(), databaseURL)
+	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
 
-	// Проверяем соединение
+	pool, err := pgxpool.ConnectConfig(context.Background(), config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Проверяем подключение
 	if err := pool.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("unable to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	// Выполняем миграции
@@ -115,4 +120,4 @@ func runMigrations(pool *pgxpool.Pool) error {
 	}
 
 	return nil
-} 
+}

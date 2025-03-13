@@ -1,13 +1,13 @@
 package repository
 
 import (
-	"TODO-list/internal/models"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/yourusername/todo-list/internal/models"
 	"time"
 )
 

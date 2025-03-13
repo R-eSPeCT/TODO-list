@@ -1,10 +1,12 @@
 package main
 
 import (
-	"TODO-list/internal/config"
-	"TODO-list/internal/handlers"
-	"TODO-list/internal/middleware"
-	"TODO-list/internal/repository"
+	"github.com/yourusername/todo-list/internal/auth"
+	
+	"github.com/yourusername/todo-list/internal/config"
+	"github.com/yourusername/todo-list/internal/handlers"
+	"github.com/yourusername/todo-list/internal/middleware"
+	"github.com/yourusername/todo-list/internal/repository"
 	"log"
 	"os"
 	"os/signal"
@@ -30,12 +32,23 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
+// Инициализация JWT менеджера
+	jwtManager := auth.NewJW
 
 	// Инициализация Fiber
 	app := fiber.New(fiber.Config{
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 		IdleTimeout:  time.Second * 5,
+		ErrorHandler: func(c *fiber.Ctx, err error) error {
+			code := fiber.StatusInternalServerError
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+			return c.Status(code).JSON(fiber.Map{
+				"error": err.Error(),
+			})
+		},
 	})
 
 	// Middleware
@@ -60,7 +73,7 @@ func main() {
 	app.Post("/users/login", userHandler.Login)
 
 	// Защищенные маршруты (требуют авторизации)
-	api := app.Group("/api", middleware.AuthMiddleware())
+	api := app.Group("/api", middleware.AuthMiddleware(jwtManager))
 
 	// Маршруты для задач
 	api.Get("/tasks", todoHandler.GetTodos)
