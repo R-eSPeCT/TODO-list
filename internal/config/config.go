@@ -21,7 +21,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Port:            GetEnvOrDefault("PORT", "3000"),
-		DatabaseURL:     GetEnvOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/todo?sslmode=disable"),
+		DatabaseURL:     GetEnvOrDefault("DATABASE_URL", "postgres://postgres:Salamander0101@localhost:5432/todo?sslmode=disable"),
 		RedisURL:        GetEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:       GetEnvOrDefault("JWT_SECRET", "your-secret-key"),
 		JWTExpiration:   GetDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),

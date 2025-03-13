@@ -29,74 +29,131 @@ func TestGetTodos(t *testing.T) {
 
 	// Тестирование получения всех задач
 	t.Run("Get all todos", func(t *testing.T) {
-		mockRepo.On("GetAll").Return([]*Todo{
-			{ID: 1, Title: "Task 1", Description: "Description 1"},
-			{ID: 2, Title: "Task 2", Description: "Description 2"},
+		userID := uuid.New()
+		mockRepo.On("GetByUserID", mock.Anything, userID).Return([]*models.Todo{
+			{ID: uuid.New(), Title: "Task 1", Description: "Description 1"},
+			{ID: uuid.New(), Title: "Task 2", Description: "Description 2"},
 		}, nil)
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/todos", nil))
+		req := httptest.NewRequest(http.MethodGet, "/todos", nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		defer resp.Body.Close()
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var todos []*Todo
-		err = json.Unmarshal(resp.Body.Bytes(), &todos)
+		var todos []*models.Todo
+		err = json.NewDecoder(resp.Body).Decode(&todos)
 		assert.NoError(t, err)
 		assert.Len(t, todos, 2)
 	})
 
 	// Тестирование получения задачи по ID
 	t.Run("Get todo by ID", func(t *testing.T) {
-		mockRepo.On("Get", 1).Return(&Todo{ID: 1, Title: "Task 1", Description: "Description 1"}, nil)
+		todoID := uuid.New()
+		userID := uuid.New()
+		mockRepo.On("GetByID", mock.Anything, todoID).Return(&models.Todo{
+			ID:          todoID,
+			UserID:      userID,
+			Title:       "Task 1",
+			Description: "Description 1",
+		}, nil)
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/todos/1", nil))
+		req := httptest.NewRequest(http.MethodGet, "/todos/"+todoID.String(), nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		defer resp.Body.Close()
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var todo *Todo
-		err = json.Unmarshal(resp.Body.Bytes(), &todo)
+		var todo *models.Todo
+		err = json.NewDecoder(resp.Body).Decode(&todo)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, todo.ID)
+		assert.Equal(t, todoID, todo.ID)
 	})
 
 	// Тестирование добавления новой задачи
 	t.Run("Add new todo", func(t *testing.T) {
-		todo := &Todo{Title: "New Task", Description: "New Description"}
-		mockRepo.On("Add", mock.Anything).Return(todo, nil)
+		userID := uuid.New()
+		todo := &models.Todo{
+			Title:       "New Task",
+			Description: "New Description",
+			UserID:      userID,
+		}
+		mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil)
 
 		body, _ := json.Marshal(todo)
-		resp, err := app.Test(httptest.NewRequest(http.MethodPost, "/todos", bytes.NewBuffer(body)))
+		req := httptest.NewRequest(http.MethodPost, "/todos", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		defer resp.Body.Close()
+
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
-		var createdTodo *Todo
-		err = json.Unmarshal(resp.Body.Bytes(), &createdTodo)
+		var createdTodo *models.Todo
+		err = json.NewDecoder(resp.Body).Decode(&createdTodo)
 		assert.NoError(t, err)
 		assert.Equal(t, "New Task", createdTodo.Title)
 	})
 
 	// Тестирование обновления задачи
 	t.Run("Update todo", func(t *testing.T) {
-		updatedTodo := &Todo{ID: 1, Title: "Updated Task", Description: "Updated Description"}
-		mockRepo.On("Update", 1, mock.Anything).Return(updatedTodo, nil)
+		todoID := uuid.New()
+		userID := uuid.New()
+		updatedTodo := &models.Todo{
+			ID:          todoID,
+			UserID:      userID,
+			Title:       "Updated Task",
+			Description: "Updated Description",
+		}
+		mockRepo.On("GetByID", mock.Anything, todoID).Return(updatedTodo, nil)
+		mockRepo.On("Update", mock.Anything, mock.Anything).Return(nil)
 
 		body, _ := json.Marshal(updatedTodo)
-		resp, err := app.Test(httptest.NewRequest(http.MethodPut, "/todos/1", bytes.NewBuffer(body)))
+		req := httptest.NewRequest(http.MethodPut, "/todos/"+todoID.String(), bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		defer resp.Body.Close()
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		var updatedTodoResponse *Todo
-		err = json.Unmarshal(resp.Body.Bytes(), &updatedTodoResponse)
+		var updatedTodoResponse *models.Todo
+		err = json.NewDecoder(resp.Body).Decode(&updatedTodoResponse)
 		assert.NoError(t, err)
-		assert.Equal(t, 1, updatedTodoResponse.ID)
+		assert.Equal(t, todoID, updatedTodoResponse.ID)
 		assert.Equal(t, "Updated Task", updatedTodoResponse.Title)
 	})
 
 	// Тестирование удаления задачи
 	t.Run("Delete todo", func(t *testing.T) {
-		mockRepo.On("Delete", 1).Return(nil)
+		todoID := uuid.New()
+		userID := uuid.New()
+		mockRepo.On("GetByID", mock.Anything, todoID).Return(&models.Todo{
+			ID:     todoID,
+			UserID: userID,
+		}, nil)
+		mockRepo.On("Delete", mock.Anything, todoID).Return(nil)
 
-		resp, err := app.Test(httptest.NewRequest(http.MethodDelete, "/todos/1", nil))
+		req := httptest.NewRequest(http.MethodDelete, "/todos/"+todoID.String(), nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := app.Test(req)
 		assert.NoError(t, err)
+		defer resp.Body.Close()
+
 		assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	})
 }
