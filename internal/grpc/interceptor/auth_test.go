@@ -13,12 +13,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type testServer struct {
+type grpcTestServer struct {
 	grpc.ServerStream
 	ctx context.Context
 }
 
-func (s *testServer) Context() context.Context {
+func (s *grpcTestServer) Context() context.Context {
 	return s.ctx
 }
 

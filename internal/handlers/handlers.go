@@ -2,11 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
