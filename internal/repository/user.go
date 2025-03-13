@@ -2,119 +2,118 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/yourusername/todo-list/internal/models"
 	"strings"
 )
 
-type userRepo struct {
-	db *pgxpool.Pool
+// UserRepository определяет интерфейс для работы с пользователями
+type UserRepository interface {
+	Create(ctx context.Context, user *models.User) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	Update(ctx context.Context, user *models.User) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
-func NewUserRepository(db *pgxpool.Pool) UserRepository {
-	return &userRepo{db: db}
+type userRepository struct {
+	db *sql.DB
 }
 
-func (r *userRepo) Create(ctx context.Context, user *models.User) error {
-	if user == nil {
-		return errors.New("user is nil")
+// NewUserRepository создает новый экземпляр UserRepository
+func NewUserRepository(db *sql.DB) UserRepository {
+	return &userRepository{db: db}
+}
+
+func (r *userRepository) Create(ctx context.Context, user *models.User) error {
+	query := `
+		INSERT INTO users (id, email, password, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+	_, err := r.db.ExecContext(ctx, query,
+		user.ID, user.Email, user.Password,
+		user.CreatedAt, user.UpdatedAt,
+	)
+	return err
+}
+
+func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, email, password, created_at, updated_at
+		FROM users WHERE id = $1
+	`
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID, &user.Email, &user.Password,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
 	}
-
-	_, err := r.db.Exec(ctx,
-		"INSERT INTO users (id, username, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
-		user.ID, user.Username, user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
-		if isUniqueViolation(err) {
-			return errors.New("user with this email or username already exists")
-		}
-		return fmt.Errorf("failed to create user: %w", err)
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	user := &models.User{}
+	query := `
+		SELECT id, email, password, created_at, updated_at
+		FROM users WHERE email = $1
+	`
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID, &user.Email, &user.Password,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (r *userRepository) Update(ctx context.Context, user *models.User) error {
+	query := `
+		UPDATE users
+		SET email = $1, password = $2, updated_at = $3
+		WHERE id = $4
+	`
+	result, err := r.db.ExecContext(ctx, query,
+		user.Email, user.Password, user.UpdatedAt,
+		user.ID,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user not found")
 	}
 	return nil
 }
 
-func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	if id == uuid.Nil {
-		return nil, errors.New("invalid user ID")
-	}
-
-	var user models.User
-	err := r.db.QueryRow(ctx,
-		"SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE id = $1",
-		id,
-	).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
-
+func (r *userRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM users WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, errors.New("user not found")
-		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return err
 	}
-
-	return &user, nil
-}
-
-func (r *userRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	if email == "" {
-		return nil, errors.New("email is required")
-	}
-
-	var user models.User
-	err := r.db.QueryRow(ctx,
-		"SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE email = $1",
-		email,
-	).Scan(&user.ID, &user.Username, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
-
+	rows, err := result.RowsAffected()
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, errors.New("user not found")
-		}
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return err
 	}
-
-	return &user, nil
-}
-
-func (r *userRepo) Update(ctx context.Context, user *models.User) error {
-	if user == nil {
-		return errors.New("user is nil")
+	if rows == 0 {
+		return fmt.Errorf("user not found")
 	}
-
-	if user.ID == uuid.Nil {
-		return errors.New("invalid user ID")
-	}
-
-	_, err := r.db.Exec(ctx,
-		"UPDATE users SET username = $1, email = $2, password_hash = $3, updated_at = $4 WHERE id = $5",
-		user.Username, user.Email, user.PasswordHash, user.UpdatedAt, user.ID)
-	if err != nil {
-		if isUniqueViolation(err) {
-			return errors.New("user with this email or username already exists")
-		}
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-	return nil
-}
-
-func (r *userRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	if id == uuid.Nil {
-		return errors.New("invalid user ID")
-	}
-
-	result, err := r.db.Exec(ctx,
-		"DELETE FROM users WHERE id = $1",
-		id)
-	if err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
-	}
-
-	if result.RowsAffected() == 0 {
-		return errors.New("user not found")
-	}
-
 	return nil
 }
 

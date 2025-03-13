@@ -1,9 +1,9 @@
 package repository
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
-	"github.com/jackc/pgx/v4/pgxpool"
+	_ "github.com/lib/pq"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -11,35 +11,29 @@ import (
 	"strings"
 )
 
-// Connect создает подключение к базе данных PostgreSQL
-func Connect(databaseURL string) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(databaseURL)
+// Connect устанавливает соединение с базой данных PostgreSQL
+func Connect(databaseURL string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse database URL: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	pool, err := pgxpool.ConnectConfig(context.Background(), config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// Проверяем подключение
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	// Выполняем миграции
-	if err := runMigrations(pool); err != nil {
+	if err := runMigrations(db); err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	return pool, nil
+	return db, nil
 }
 
 // runMigrations выполняет SQL-миграции
-func runMigrations(pool *pgxpool.Pool) error {
+func runMigrations(db *sql.DB) error {
 	// Создаем таблицу для отслеживания миграций, если её нет
-	_, err := pool.Exec(context.Background(), `
+	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS migrations (
 			id SERIAL PRIMARY KEY,
 			name VARCHAR(255) NOT NULL UNIQUE,
@@ -51,7 +45,7 @@ func runMigrations(pool *pgxpool.Pool) error {
 	}
 
 	// Получаем список уже примененных миграций
-	rows, err := pool.Query(context.Background(), "SELECT name FROM migrations ORDER BY id")
+	rows, err := db.Query("SELECT name FROM migrations ORDER BY id")
 	if err != nil {
 		return fmt.Errorf("failed to get applied migrations: %w", err)
 	}
@@ -94,25 +88,25 @@ func runMigrations(pool *pgxpool.Pool) error {
 		}
 
 		// Начинаем транзакцию
-		tx, err := pool.Begin(context.Background())
+		tx, err := db.Begin()
 		if err != nil {
 			return fmt.Errorf("failed to begin transaction: %w", err)
 		}
 
 		// Выполняем SQL-скрипт
-		if _, err := tx.Exec(context.Background(), string(content)); err != nil {
-			tx.Rollback(context.Background())
+		if _, err := tx.Exec(string(content)); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("failed to execute migration %s: %w", file, err)
 		}
 
 		// Отмечаем миграцию как выполненную
-		if _, err := tx.Exec(context.Background(), "INSERT INTO migrations (name) VALUES ($1)", file); err != nil {
-			tx.Rollback(context.Background())
+		if _, err := tx.Exec("INSERT INTO migrations (name) VALUES ($1)", file); err != nil {
+			tx.Rollback()
 			return fmt.Errorf("failed to mark migration %s as applied: %w", file, err)
 		}
 
 		// Подтверждаем транзакцию
-		if err := tx.Commit(context.Background()); err != nil {
+		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit migration %s: %w", file, err)
 		}
 

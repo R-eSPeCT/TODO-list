@@ -1,10 +1,10 @@
 package cache
 
 import (
-	"TODO-list/internal/config"
 	"context"
 	"encoding/json"
 	"github.com/redis/go-redis/v9"
+	"github.com/yourusername/todo-list/internal/config"
 	"time"
 )
 
@@ -14,7 +14,7 @@ type RedisCache struct {
 }
 
 // NewRedisCache создает новый экземпляр RedisCache
-func NewRedisCache(cfg *config.RedisConfig) (*RedisCache, error) {
+func NewRedisCache(cfg config.RedisConfig) (*RedisCache, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.GetAddr(),
 		Password: cfg.Password,

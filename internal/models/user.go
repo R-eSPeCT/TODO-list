@@ -1,36 +1,34 @@
 package models
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
+// User представляет пользователя в системе
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID        uuid.UUID `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	Password  string    `json:"-" db:"password"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
-// UserCreate представляет данные для создания пользователя
-type UserCreate struct {
-	Username string `json:"username" validate:"required,min=3,max=50"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=6"`
+// RegisterRequest представляет запрос на регистрацию пользователя
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-// UserLogin представляет данные для входа
-type UserLogin struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+// LoginRequest представляет запрос на вход пользователя
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-type UserResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// LoginResponse представляет ответ на запрос входа
+type LoginResponse struct {
+	Token string `json:"token"`
+	User  User   `json:"user"`
 }

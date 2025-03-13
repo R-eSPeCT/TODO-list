@@ -47,7 +47,7 @@ func TestNewConfig(t *testing.T) {
 			name: "valid config",
 			env: map[string]string{
 				"PORT":                    "3000",
-				"DATABASE_URL":            "postgres://postgres:postgres@localhost:5432/todo_list?sslmode=disable",
+				"DATABASE_URL":            "postgres://postgres:Salaamnder0101@localhost:5432/todo_list?sslmode=disable",
 				"REDIS_URL":               "redis://localhost:6379/0",
 				"JWT_SECRET_KEY":          "test-secret-key",
 				"JWT_TOKEN_DURATION":      "24h",

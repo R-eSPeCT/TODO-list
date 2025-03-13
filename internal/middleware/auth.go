@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"github.com/golang-jwt/jwt"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"

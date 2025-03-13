@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -57,7 +58,7 @@ func main() {
 	app.Use(recover.New())
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.AllowedOrigins,
+		AllowOrigins:     strings.Join(cfg.AllowedOrigins, ","),
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowMethods:     "GET, POST, PUT, DELETE",
 		AllowCredentials: true,
