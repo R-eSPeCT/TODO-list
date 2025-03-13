@@ -2,109 +2,75 @@ package main
 
 import (
 	"context"
-	"github.com/yourusername/todo-list/internal/auth"
-
-	"github.com/yourusername/todo-list/internal/config"
-	"github.com/yourusername/todo-list/internal/handlers"
-	"github.com/yourusername/todo-list/internal/middleware"
-	"github.com/yourusername/todo-list/internal/repository"
+	"database/sql"
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	_ "github.com/lib/pq"
+	"github.com/yourusername/t
+	"github.com/yourusername/todo-list/internal/auth"
+	"github.com/yourusername/todo-list/internal/config"
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	// Загрузка конфигурации
+	// Загружаем конфигурацию
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Подключение к базе данных
-	db, err := repository.Connect(cfg.DatabaseURL)
+	// Подключаемся к базе данных
+	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
-	// Инициализация JWT менеджера
-	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiration)
-
-	// Инициализация Fiber
-	app := fiber.New(fiber.Config{
-		ReadTimeout:  time.Second * 10,
-		WriteTimeout: time.Second * 10,
-		IdleTimeout:  time.Second * 5,
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			return c.Status(code).JSON(fiber.Map{
-				"error": err.Error(),
-			})
-		},
-	})
-
-	// Middleware
-	app.Use(recover.New())
-	app.Use(logger.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Join(cfg.AllowedOrigins, ","),
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
-		AllowMethods:     "GET, POST, PUT, DELETE",
-		AllowCredentials: true,
-	}))
-
-	// Инициализация репозиториев
+	// Создаем репозитории
 	userRepo := repository.NewUserRepository(db)
-	todoRepo := repository.NewTodoRepository(db)
 
-	// Инициализация обработчиков
-	todoHandler := handlers.NewTodoHandler(todoRepo)
-	userHandler := handlers.NewUserHandler(userRepo, jwtManager)
+	// Создаем JWT менеджер
+	jwtManager := auth.NewJWTManager(cfg.JWTSecretKey, cfg.JWTTokenDuration)
 
-	// Публичные маршруты (без авторизации)
-	app.Post("/users/register", userHandler.Register)
-	app.Post("/users/login", userHandler.Login)
+	// Создаем gRPC сервер
+	grpcServer := auth.NewGRPCServer(userRepo, []byte(cfg.JWTSecretKey))
 
-	// Защищенные маршруты (требуют авторизации)
-	api := app.Group("/api", middleware.AuthMiddleware(jwtManager))
+	// Создаем TCP listener для gRPC
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPC.Port))
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
 
-	// Маршруты для задач
-	api.Get("/tasks", todoHandler.GetTodos)
-	api.Post("/tasks", todoHandler.CreateTodo)
-	api.Put("/tasks/:id", todoHandler.UpdateTodo)
-	api.Delete("/tasks/:id", todoHandler.DeleteTodo)
-	api.Get("/tasks/:id", todoHandler.GetTodoByID)
-	api.Get("/tasks/grouped", todoHandler.GetGroupedTodos)
+	// Создаем канал для graceful shutdown
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
-	// Обработка graceful shutdown
+	// Запускаем gRPC сервер в горутине
 	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		<-sigChan
-
-		log.Println("Shutting down gracefully...")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := app.ShutdownWithContext(ctx); err != nil {
-			log.Printf("Error during shutdown: %v", err)
+		log.Printf("Starting gRPC server on port %d", cfg.GRPC.Port)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
-	// Запуск сервера
-	log.Printf("Server starting on port %s", cfg.Port)
-	if err := app.Listen(":" + cfg.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	// Ожидаем сигнал для graceful shutdown
+	<-stop
+	log.Println("Shutting down server...")
+
+	// Создаем контекст с таймаутом для graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Останавливаем сервер
+	grpcServer.Stop()
+
+	// Ожидаем завершения всех горутин
+	<-ctx.Done()
+	log.Println("Server stopped")
 }

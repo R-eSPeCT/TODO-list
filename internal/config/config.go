@@ -1,7 +1,8 @@
 package config
 
 import (
-	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/yourusername/todo-list/pkg/env"
@@ -17,7 +18,7 @@ type Config struct {
 	AllowedOrigins  []string
 	RateLimitMax    int
 	RateLimitWindow time.Duration
-	GRPC            *GRPCConfig
+	GRPC            GRPCConfig
 	HTTP            *HTTPConfig
 }
 
@@ -50,14 +51,13 @@ func LoadConfig() (*Config, error) {
 		AllowedOrigins:  env.GetStringSliceEnvOrDefault("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
 		RateLimitMax:    env.GetIntEnvOrDefault("RATE_LIMIT_MAX", 100),
 		RateLimitWindow: env.GetDurationEnvOrDefault("RATE_LIMIT_WINDOW", time.Hour),
+		GRPC: GRPCConfig{
+			Port:             env.GetIntEnvOrDefault("GRPC_PORT", 50051),
+			MaxRequestSize:   env.GetIntEnvOrDefault("GRPC_MAX_REQUEST_SIZE", 4*1024*1024), // 4MB
+			KeepAlive:        env.GetDurationEnvOrDefault("GRPC_KEEP_ALIVE", 1*time.Hour),
+			KeepAliveTimeout: env.GetDurationEnvOrDefault("GRPC_KEEP_ALIVE_TIMEOUT", 20*time.Second),
+		},
 	}
-
-	// Загрузка gRPC конфигурации
-	grpcConfig, err := NewGRPCConfig()
-	if err != nil {
-		return nil, err
-	}
-	cfg.GRPC = grpcConfig
 
 	// Загрузка HTTP конфигурации
 	httpConfig, err := NewHTTPConfig()
@@ -67,7 +67,7 @@ func LoadConfig() (*Config, error) {
 	cfg.HTTP = httpConfig
 
 	if err := cfg.validate(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	return cfg, nil
@@ -113,35 +113,51 @@ func NewHTTPConfig() (*HTTPConfig, error) {
 
 func (c *Config) validate() error {
 	if c.Port == "" {
-		return errors.New("port is required")
+		return fmt.Errorf("port is required")
 	}
 
 	if c.DatabaseURL == "" {
-		return errors.New("database URL is required")
+		return fmt.Errorf("database URL is required")
 	}
 
 	if c.RedisURL == "" {
-		return errors.New("redis URL is required")
+		return fmt.Errorf("redis URL is required")
 	}
 
 	if c.JWTSecret == "" {
-		return errors.New("JWT secret is required")
+		return fmt.Errorf("JWT secret is required")
 	}
 
 	if c.JWTExpiration <= 0 {
-		return errors.New("JWT expiration must be positive")
+		return fmt.Errorf("JWT expiration must be positive")
 	}
 
 	if len(c.AllowedOrigins) == 0 {
-		return errors.New("at least one allowed origin is required")
+		return fmt.Errorf("at least one allowed origin is required")
 	}
 
 	if c.RateLimitMax <= 0 {
-		return errors.New("rate limit max must be positive")
+		return fmt.Errorf("rate limit max must be positive")
 	}
 
 	if c.RateLimitWindow <= 0 {
-		return errors.New("rate limit window must be positive")
+		return fmt.Errorf("rate limit window must be positive")
+	}
+
+	if c.GRPC.Port <= 0 {
+		return fmt.Errorf("gRPC port must be positive")
+	}
+
+	if c.GRPC.MaxRequestSize <= 0 {
+		return fmt.Errorf("gRPC max request size must be positive")
+	}
+
+	if c.GRPC.KeepAlive <= 0 {
+		return fmt.Errorf("gRPC keep alive must be positive")
+	}
+
+	if c.GRPC.KeepAliveTimeout <= 0 {
+		return fmt.Errorf("gRPC keep alive timeout must be positive")
 	}
 
 	return nil
@@ -149,38 +165,38 @@ func (c *Config) validate() error {
 
 func (g *GRPCConfig) validate() error {
 	if g.Port <= 0 {
-		return errors.New("gRPC port must be positive")
+		return fmt.Errorf("gRPC port must be positive")
 	}
 	if g.MaxRequestSize <= 0 {
-		return errors.New("gRPC max request size must be positive")
+		return fmt.Errorf("gRPC max request size must be positive")
 	}
 	if g.KeepAlive <= 0 {
-		return errors.New("gRPC keep alive must be positive")
+		return fmt.Errorf("gRPC keep alive must be positive")
 	}
 	if g.KeepAliveTimeout <= 0 {
-		return errors.New("gRPC keep alive timeout must be positive")
+		return fmt.Errorf("gRPC keep alive timeout must be positive")
 	}
 	if g.TokenDuration <= 0 {
-		return errors.New("gRPC token duration must be positive")
+		return fmt.Errorf("gRPC token duration must be positive")
 	}
 	if g.JWTSecretKey == "" {
-		return errors.New("gRPC JWT secret key is required")
+		return fmt.Errorf("gRPC JWT secret key is required")
 	}
 	return nil
 }
 
 func (h *HTTPConfig) validate() error {
 	if h.Port == "" {
-		return errors.New("HTTP port is required")
+		return fmt.Errorf("HTTP port is required")
 	}
 	if len(h.AllowedOrigins) == 0 {
-		return errors.New("at least one allowed origin is required")
+		return fmt.Errorf("at least one allowed origin is required")
 	}
 	if h.RateLimitMax <= 0 {
-		return errors.New("HTTP rate limit max must be positive")
+		return fmt.Errorf("HTTP rate limit max must be positive")
 	}
 	if h.RateLimitWindow <= 0 {
-		return errors.New("HTTP rate limit window must be positive")
+		return fmt.Errorf("HTTP rate limit window must be positive")
 	}
 	return nil
 }

@@ -62,6 +62,7 @@ func (m *JWTManager) Validate(tokenString string) (*Claims, error) {
 	return nil, fmt.Errorf("invalid token claims")
 }
 
+// GenerateToken создает новый JWT токен
 func GenerateToken(userID string, key []byte) (string, error) {
 	claims := Claims{
 		UserID: userID,
@@ -75,18 +76,22 @@ func GenerateToken(userID string, key []byte) (string, error) {
 	return token.SignedString(key)
 }
 
+// ValidateToken проверяет JWT токен и возвращает claims
 func ValidateToken(tokenString string, key []byte) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return key, nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
 
-	return nil, jwt.ErrSignatureInvalid
+	return nil, fmt.Errorf("invalid token claims")
 }
