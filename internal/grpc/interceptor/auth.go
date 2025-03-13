@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	
+	"strings"
 )
 
 // AuthInterceptor представляет интерцептор для аутентификации
@@ -88,7 +88,7 @@ func (i *AuthInterceptor) authorize(ctx context.Context) (string, error) {
 	}
 
 	accessToken := values[0]
-	if !strings.HasPrefix(accessToken, "Bearer ") {
+	if strings.HasPrefix(accessToken, "Bearer ") {
 		return "", status.Errorf(codes.Unauthenticated, "invalid authorization format")
 	}
 

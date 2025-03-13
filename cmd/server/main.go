@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/yourusername/todo-list/internal/auth"
 
 	"github.com/yourusername/todo-list/internal/config"
@@ -56,9 +57,10 @@ func main() {
 	app.Use(recover.New())
 	app.Use(logger.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.AllowedOrigins,
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
-		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
+		AllowOrigins:     cfg.AllowedOrigins,
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowMethods:     "GET, POST, PUT, DELETE",
+		AllowCredentials: true,
 	}))
 
 	// Инициализация репозиториев
@@ -91,7 +93,10 @@ func main() {
 		<-sigChan
 
 		log.Println("Shutting down gracefully...")
-		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := app.ShutdownWithContext(ctx); err != nil {
 			log.Printf("Error during shutdown: %v", err)
 		}
 	}()

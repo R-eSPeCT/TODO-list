@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"time"
+
+	"github.com/yourusername/todo-list/pkg/env"
 )
 
 // Config содержит конфигурацию приложения.
@@ -20,14 +22,14 @@ type Config struct {
 // LoadConfig загружает конфигурацию из переменных среды
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
-		Port:            GetEnvOrDefault("PORT", "3000"),
-		DatabaseURL:     GetEnvOrDefault("DATABASE_URL", "postgres://postgres:Salamander0101@localhost:5432/todo?sslmode=disable"),
-		RedisURL:        GetEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
-		JWTSecret:       GetEnvOrDefault("JWT_SECRET", "your-secret-key"),
-		JWTExpiration:   GetDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),
-		AllowedOrigins:  GetStringSliceEnvOrDefault("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
-		RateLimitMax:    GetIntEnvOrDefault("RATE_LIMIT_MAX", 100),
-		RateLimitWindow: GetDurationEnvOrDefault("RATE_LIMIT_WINDOW", time.Hour),
+		Port:            env.GetEnvOrDefault("PORT", "3000"),
+		DatabaseURL:     env.GetEnvOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/todo?sslmode=disable"),
+		RedisURL:        env.GetEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:       env.GetEnvOrDefault("JWT_SECRET", "your-secret-key"),
+		JWTExpiration:   env.GetDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),
+		AllowedOrigins:  env.GetStringSliceEnvOrDefault("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
+		RateLimitMax:    env.GetIntEnvOrDefault("RATE_LIMIT_MAX", 100),
+		RateLimitWindow: env.GetDurationEnvOrDefault("RATE_LIMIT_WINDOW", time.Hour),
 	}
 
 	if err := cfg.validate(); err != nil {
