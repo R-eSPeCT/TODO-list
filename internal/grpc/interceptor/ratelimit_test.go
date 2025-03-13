@@ -38,11 +38,13 @@ func setupTestRedis(t *testing.T) *redis.Client {
 
 func TestRateLimitInterceptor_Unary(t *testing.T) {
 	redisClient := setupTestRedis(t)
+	defer redisClient.Close()
+
 	config := &RateLimitConfig{
-		Cache:            redisClient,
-		MaxRequestCount:  2,
-		Duration:         time.Second * 5,
-		KeyPrefix:        "test:ratelimit:",
+		Cache:           redisClient,
+		MaxRequestCount: 2,
+		Duration:        time.Second * 5,
+		KeyPrefix:       "test:ratelimit:",
 	}
 	interceptor := NewRateLimitInterceptor(config)
 
@@ -114,11 +116,13 @@ func TestRateLimitInterceptor_Unary(t *testing.T) {
 
 func TestRateLimitInterceptor_Stream(t *testing.T) {
 	redisClient := setupTestRedis(t)
+	defer redisClient.Close()
+
 	config := &RateLimitConfig{
-		Cache:            redisClient,
-		MaxRequestCount:  2,
-		Duration:         time.Second * 5,
-		KeyPrefix:        "test:ratelimit:",
+		Cache:           redisClient,
+		MaxRequestCount: 2,
+		Duration:        time.Second * 5,
+		KeyPrefix:       "test:ratelimit:",
 	}
 	interceptor := NewRateLimitInterceptor(config)
 
@@ -191,11 +195,13 @@ func TestRateLimitInterceptor_Stream(t *testing.T) {
 
 func TestRateLimitInterceptor_KeyGeneration(t *testing.T) {
 	redisClient := setupTestRedis(t)
+	defer redisClient.Close()
+
 	config := &RateLimitConfig{
-		Cache:            redisClient,
-		MaxRequestCount:  2,
-		Duration:         time.Second * 5,
-		KeyPrefix:        "test:ratelimit:",
+		Cache:           redisClient,
+		MaxRequestCount: 2,
+		Duration:        time.Second * 5,
+		KeyPrefix:       "test:ratelimit:",
 	}
 	interceptor := NewRateLimitInterceptor(config)
 
@@ -231,4 +237,4 @@ func TestRateLimitInterceptor_KeyGeneration(t *testing.T) {
 	ttl, err := redisClient.TTL(ctx, key).Result()
 	assert.NoError(t, err)
 	assert.True(t, ttl > 0 && ttl <= config.Duration)
-} 
+}

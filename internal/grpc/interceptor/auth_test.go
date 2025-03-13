@@ -26,6 +26,11 @@ func TestAuthInterceptor_Unary(t *testing.T) {
 	jwtManager := NewJWTManager("test-secret-key", "1h")
 	interceptor := NewAuthInterceptor(jwtManager)
 
+	// Генерируем валидный токен
+	userID := uuid.New()
+	validToken, err := jwtManager.Generate(userID)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		token   string
@@ -34,7 +39,7 @@ func TestAuthInterceptor_Unary(t *testing.T) {
 	}{
 		{
 			name:    "valid token",
-			token:   "valid-token",
+			token:   validToken,
 			method:  "/todo.TodoService/CreateTodo",
 			wantErr: false,
 		},
@@ -72,6 +77,12 @@ func TestAuthInterceptor_Unary(t *testing.T) {
 			}
 
 			handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+				if !tt.wantErr {
+					// Проверяем, что userID добавлен в контекст
+					ctxUserID := ctx.Value("userID")
+					assert.NotNil(t, ctxUserID)
+					assert.Equal(t, userID, ctxUserID)
+				}
 				return nil, nil
 			}
 
@@ -90,6 +101,11 @@ func TestAuthInterceptor_Stream(t *testing.T) {
 	jwtManager := NewJWTManager("test-secret-key", "1h")
 	interceptor := NewAuthInterceptor(jwtManager)
 
+	// Генерируем валидный токен
+	userID := uuid.New()
+	validToken, err := jwtManager.Generate(userID)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		token   string
@@ -98,7 +114,7 @@ func TestAuthInterceptor_Stream(t *testing.T) {
 	}{
 		{
 			name:    "valid token",
-			token:   "valid-token",
+			token:   validToken,
 			method:  "/todo.TodoService/StreamTodos",
 			wantErr: false,
 		},
@@ -136,6 +152,12 @@ func TestAuthInterceptor_Stream(t *testing.T) {
 			}
 
 			handler := func(srv interface{}, stream grpc.ServerStream) error {
+				if !tt.wantErr {
+					// Проверяем, что userID добавлен в контекст
+					ctxUserID := stream.Context().Value("userID")
+					assert.NotNil(t, ctxUserID)
+					assert.Equal(t, userID, ctxUserID)
+				}
 				return nil
 			}
 
@@ -193,10 +215,12 @@ func TestAuthInterceptor_Authorize(t *testing.T) {
 			userID, err := interceptor.authorize(ctx)
 			if tt.wantErr {
 				assert.Error(t, err)
+				assert.Nil(t, userID)
 				return
 			}
 			assert.NoError(t, err)
 			assert.NotNil(t, userID)
+			assert.Equal(t, userID, userID)
 		})
 	}
-} 
+}

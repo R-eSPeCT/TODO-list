@@ -6,16 +6,27 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuthMiddleware(t *testing.T) {
 	app := fiber.New()
-	app.Use(AuthMiddleware())
+	jwtManager := NewJWTManager("test-secret-key", "1h")
+	app.Use(AuthMiddleware(jwtManager))
+
+	// Генерируем валидный токен
+	userID := uuid.New()
+	validToken, err := jwtManager.Generate(userID)
+	require.NoError(t, err)
 
 	// Тестовый обработчик
 	app.Get("/test", func(c *fiber.Ctx) error {
+		ctxUserID := c.Locals("userID")
+		assert.NotNil(t, ctxUserID)
+		assert.IsType(t, uuid.UUID{}, ctxUserID)
+		assert.Equal(t, userID, ctxUserID)
 		return c.SendStatus(http.StatusOK)
 	})
 
@@ -26,7 +37,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}{
 		{
 			name:       "valid token",
-			token:      "valid-token",
+			token:      validToken,
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -65,32 +76,32 @@ func TestCorsMiddleware(t *testing.T) {
 	})
 
 	tests := []struct {
-		name           string
-		origin         string
-		method         string
+		name            string
+		origin          string
+		method          string
 		wantAllowOrigin string
-		wantStatus     int
+		wantStatus      int
 	}{
 		{
-			name:           "allowed origin",
-			origin:         "http://localhost:3000",
-			method:         http.MethodGet,
+			name:            "allowed origin",
+			origin:          "http://localhost:3000",
+			method:          http.MethodGet,
 			wantAllowOrigin: "http://localhost:3000",
-			wantStatus:     http.StatusOK,
+			wantStatus:      http.StatusOK,
 		},
 		{
-			name:           "disallowed origin",
-			origin:         "http://malicious.com",
-			method:         http.MethodGet,
+			name:            "disallowed origin",
+			origin:          "http://malicious.com",
+			method:          http.MethodGet,
 			wantAllowOrigin: "",
-			wantStatus:     http.StatusOK,
+			wantStatus:      http.StatusOK,
 		},
 		{
-			name:           "preflight request",
-			origin:         "http://localhost:3000",
-			method:         http.MethodOptions,
+			name:            "preflight request",
+			origin:          "http://localhost:3000",
+			method:          http.MethodOptions,
 			wantAllowOrigin: "http://localhost:3000",
-			wantStatus:     http.StatusOK,
+			wantStatus:      http.StatusOK,
 		},
 	}
 
@@ -132,4 +143,4 @@ func TestLoggerMiddleware(t *testing.T) {
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-} 
+}

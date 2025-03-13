@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +69,7 @@ func TestNewConfig(t *testing.T) {
 			name: "invalid port",
 			env: map[string]string{
 				"PORT":                    "invalid",
-				"DATABASE_URL":            "postgres://postgres:postgres@localhost:5432/todo_list?sslmode=disable",
+				"DATABASE_URL":            "postgres://postgres:Salamander0101@localhost:5432/tododb?sslmode=disable",
 				"REDIS_URL":               "redis://localhost:6379/0",
 				"JWT_SECRET_KEY":          "test-secret-key",
 				"JWT_TOKEN_DURATION":      "24h",
@@ -85,7 +84,7 @@ func TestNewConfig(t *testing.T) {
 			name: "invalid duration",
 			env: map[string]string{
 				"PORT":                    "3000",
-				"DATABASE_URL":            "postgres://postgres:postgres@localhost:5432/todo_list?sslmode=disable",
+				"DATABASE_URL":            "postgres://postgres:Salamander0101@localhost:5432/tododb?sslmode=disable",
 				"REDIS_URL":               "redis://localhost:6379/0",
 				"JWT_SECRET_KEY":          "test-secret-key",
 				"JWT_TOKEN_DURATION":      "invalid",
@@ -218,4 +217,4 @@ func TestNewGRPCConfig(t *testing.T) {
 			assert.Equal(t, tt.env["GRPC_KEEP_ALIVE_TIMEOUT"], config.KeepAliveTimeout)
 		})
 	}
-} 
+}
