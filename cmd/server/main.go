@@ -12,10 +12,9 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/yourusername/t
 	"github.com/yourusername/todo-list/internal/auth"
 	"github.com/yourusername/todo-list/internal/config"
-	_ "github.com/lib/pq"
+	"github.com/yourusername/todo-list/internal/repository"
 )
 
 func main() {
@@ -32,14 +31,16 @@ func main() {
 	}
 	defer db.Close()
 
+	// Проверяем соединение с базой данных
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
 	// Создаем репозитории
 	userRepo := repository.NewUserRepository(db)
 
-	// Создаем JWT менеджер
-	jwtManager := auth.NewJWTManager(cfg.JWTSecretKey, cfg.JWTTokenDuration)
-
 	// Создаем gRPC сервер
-	grpcServer := auth.NewGRPCServer(userRepo, []byte(cfg.JWTSecretKey))
+	grpcServer := auth.NewGRPCServer(userRepo, []byte(cfg.GRPC.JWTSecretKey))
 
 	// Создаем TCP listener для gRPC
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPC.Port))
