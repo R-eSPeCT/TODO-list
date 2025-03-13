@@ -21,14 +21,25 @@ func NewTodoHandler(repo repository.TodoRepository) *TodoHandler {
 // GetTodos обрабатывает GET-запрос для получения списка всех задач пользователя.
 // Возвращает JSON-ответ с списком задач или ошибку, если что-то пошло не так.
 func (h TodoHandler) GetTodos(c *fiber.Ctx) error {
-	userID, err := uuid.Parse(c.Locals("userID").(string))
+	userIDStr, ok := c.Locals("userID").(string)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return c.Status(400).SendString("Invalid user ID")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
 	}
 
 	todos, err := h.repo.GetByUserID(c.Context(), userID)
 	if err != nil {
-		return c.Status(500).SendString(err.Error())
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get todos",
+		})
 	}
 	return c.JSON(todos)
 }
