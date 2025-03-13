@@ -1,10 +1,12 @@
 package middleware
 
 import (
-	"TODO-list/pkg/cache"
+	"context"
 	"fmt"
-	"github.com/gofiber/fiber/v2"
 	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/todo-list/pkg/cache"
 )
 
 // RateLimitConfig конфигурация для rate limiting

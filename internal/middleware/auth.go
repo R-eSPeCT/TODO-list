@@ -1,24 +1,22 @@
 package middleware
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt"
-	"github.c
 	"strings"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/todo-list/internal/auth"
 )
 
-// AuthMiddleware проверяет JWT токен и добавляет userID в контекст
+// AuthMiddleware проверяет JWT токен в заголовке Authorization
 func AuthMiddleware(jwtManager *auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Получаем токен из заголовка
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing authorization header",
+				"error": "Authorization header is required",
 			})
 		}
 
-		// Проверяем формат токена
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -26,33 +24,15 @@ func AuthMiddleware(jwtManager *auth.JWTManager) fiber.Handler {
 			})
 		}
 
-		tokenString := parts[1]
-		token, err := jwtManager.Validate(tokenString)
+		token := parts[1]
+		claims, err := jwtManager.Validate(token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid token",
 			})
 		}
 
-		// Получаем claims из токена
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok || !token.Valid {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token claims",
-			})
-		}
-
-		// Получаем userID из claims
-		userID, ok := claims["user_id"].(string)
-		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid user ID in token",
-			})
-		}
-
-		// Добавляем userID в контекст
-		c.Locals("userID", userID)
-
+		c.Locals("userID", claims.UserID)
 		return c.Next()
 	}
 }

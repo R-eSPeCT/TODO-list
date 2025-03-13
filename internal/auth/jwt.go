@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// Claims представляет структуру JWT claims
+type Claims struct {
+	UserID uuid.UUID `json:"user_id"`
+	jwt.StandardClaims
+}
+
 type JWTManager struct {
 	secretKey     []byte
 	tokenDuration time.Duration
@@ -20,11 +26,15 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
 }
 
 func (m *JWTManager) Generate(userID uuid.UUID) (string, error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := token.Claims.(jwt.MapClaims)
-	claims["user_id"] = userID.String()
-	claims["exp"] = time.Now().Add(m.tokenDuration).Unix()
+	claims := &Claims{
+		UserID: userID,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(m.tokenDuration).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		},
+	}
 
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(m.secretKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
@@ -33,8 +43,8 @@ func (m *JWTManager) Generate(userID uuid.UUID) (string, error) {
 	return tokenString, nil
 }
 
-func (m *JWTManager) Validate(tokenString string) (*jwt.Token, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+func (m *JWTManager) Validate(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -45,5 +55,9 @@ func (m *JWTManager) Validate(tokenString string) (*jwt.Token, error) {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
-	return token, nil
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token claims")
 }

@@ -1,11 +1,16 @@
 package handlers
 
 import (
-	"TODO-list/internal/models"
-	"TODO-list/internal/repository"
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"time"
+	"github.com/yourusername/todo-list/internal/models"
+	"github.com/yourusername/todo-list/internal/repository"
 )
 
 // TodoHandler представляет собой обработчик HTTP-запросов для работы с задачами (Todo).
@@ -20,7 +25,7 @@ func NewTodoHandler(repo repository.TodoRepository) *TodoHandler {
 
 // GetTodos обрабатывает GET-запрос для получения списка всех задач пользователя.
 // Возвращает JSON-ответ с списком задач или ошибку, если что-то пошло не так.
-func (h TodoHandler) GetTodos(c *fiber.Ctx) error {
+func (h *TodoHandler) GetTodos(c *fiber.Ctx) error {
 	userIDStr, ok := c.Locals("userID").(string)
 	if !ok {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -35,7 +40,8 @@ func (h TodoHandler) GetTodos(c *fiber.Ctx) error {
 		})
 	}
 
-	todos, err := h.repo.GetByUserID(c.Context(), userID)
+	ctx := context.Background()
+	todos, err := h.repo.GetByUserID(ctx, userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get todos",
@@ -47,19 +53,32 @@ func (h TodoHandler) GetTodos(c *fiber.Ctx) error {
 // CreateTodo обрабатывает POST-запрос для создания новой задачи.
 // Принимает JSON с данными задачи, валидирует их и сохраняет в базе данных.
 // Возвращает статус 201 в случае успешного создания задачи.
-func (h TodoHandler) CreateTodo(c *fiber.Ctx) error {
-	userID, err := uuid.Parse(c.Locals("userID").(string))
+func (h *TodoHandler) CreateTodo(c *fiber.Ctx) error {
+	userIDStr, ok := c.Locals("userID").(string)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		return c.Status(400).SendString("Invalid user ID")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID format",
+		})
 	}
 
 	var todo models.Todo
 	if err := c.BodyParser(&todo); err != nil {
-		return c.Status(400).SendString(err.Error())
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
 	}
 
 	if todo.Title == "" {
-		return c.Status(400).SendString("Title is required")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Title is required",
+		})
 	}
 
 	todo.ID = uuid.New()
@@ -70,19 +89,26 @@ func (h TodoHandler) CreateTodo(c *fiber.Ctx) error {
 	if todo.Status == "" {
 		todo.Status = "new"
 	} else if !isValidStatus(todo.Status) {
-		return c.Status(400).SendString("Invalid status. Must be one of: new, in_progress, done")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid status. Must be one of: new, in_progress, done",
+		})
 	}
 
 	if todo.Priority == "" {
 		todo.Priority = "medium"
 	} else if !isValidPriority(todo.Priority) {
-		return c.Status(400).SendString("Invalid priority. Must be one of: low, medium, high")
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid priority. Must be one of: low, medium, high",
+		})
 	}
 
-	if err := h.repo.Create(c.Context(), &todo); err != nil {
-		return c.Status(500).SendString(err.Error())
+	ctx := context.Background()
+	if err := h.repo.Create(ctx, &todo); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create todo",
+		})
 	}
-	return c.Status(201).JSON(todo)
+	return c.Status(fiber.StatusCreated).JSON(todo)
 }
 
 // isValidStatus проверяет, является ли статус допустимым
