@@ -2,9 +2,6 @@ package config
 
 import (
 	"errors"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -23,14 +20,14 @@ type Config struct {
 // LoadConfig загружает конфигурацию из переменных среды
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
-		Port:            getEnvOrDefault("PORT", "3000"),
-		DatabaseURL:     getEnvOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/todo?sslmode=disable"),
-		RedisURL:        getEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
-		JWTSecret:       getEnvOrDefault("JWT_SECRET", "your-secret-key"),
-		JWTExpiration:   getDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),
-		AllowedOrigins:  getStringSliceEnvOrDefault("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
-		RateLimitMax:    getIntEnvOrDefault("RATE_LIMIT_MAX", 100),
-		RateLimitWindow: getDurationEnvOrDefault("RATE_LIMIT_WINDOW", time.Hour),
+		Port:            GetEnvOrDefault("PORT", "3000"),
+		DatabaseURL:     GetEnvOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/todo?sslmode=disable"),
+		RedisURL:        GetEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:       GetEnvOrDefault("JWT_SECRET", "your-secret-key"),
+		JWTExpiration:   GetDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),
+		AllowedOrigins:  GetStringSliceEnvOrDefault("ALLOWED_ORIGINS", []string{"http://localhost:3000"}),
+		RateLimitMax:    GetIntEnvOrDefault("RATE_LIMIT_MAX", 100),
+		RateLimitWindow: GetDurationEnvOrDefault("RATE_LIMIT_WINDOW", time.Hour),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -74,36 +71,4 @@ func (c *Config) validate() error {
 	}
 
 	return nil
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getDurationEnvOrDefault(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
-	}
-	return defaultValue
-}
-
-func getIntEnvOrDefault(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
-}
-
-func getStringSliceEnvOrDefault(key string, defaultValue []string) []string {
-	if value := os.Getenv(key); value != "" {
-		return strings.Split(value, ",")
-	}
-	return defaultValue
 }

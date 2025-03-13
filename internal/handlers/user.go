@@ -6,21 +6,26 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
+	"github.com/yourusername/todo-list/internal/auth"
 	"golang.org/x/crypto/bcrypt"
 	"regexp"
 	"time"
 )
 
 type UserHandler struct {
-	repo repository.UserRepository
+	repo       repository.UserRepository
+	jwtManager *auth.JWTManager
 }
 
-func NewUserHandler(repo repository.UserRepository) *UserHandler {
-	return &UserHandler{repo: repo}
+func NewUserHandler(repo repository.UserRepository, jwtManager *auth.JWTManager) *UserHandler {
+	return &UserHandler{
+		repo:       repo,
+		jwtManager: jwtManager,
+	}
 }
 
 // Register обрабатывает регистрацию нового пользователя
-func (h UserHandler) Register(c *fiber.Ctx) error {
+func (h *UserHandler) Register(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -73,7 +78,7 @@ func (h UserHandler) Register(c *fiber.Ctx) error {
 }
 
 // Login обрабатывает вход пользователя
-func (h UserHandler) Login(c *fiber.Ctx) error {
+func (h *UserHandler) Login(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -101,7 +106,7 @@ func (h UserHandler) Login(c *fiber.Ctx) error {
 	}
 
 	// Генерируем JWT токен
-	token, err := generateJWT(user.ID)
+	token, err := h.jwtManager.Generate(user.ID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to generate token",
@@ -115,12 +120,6 @@ func (h UserHandler) Login(c *fiber.Ctx) error {
 			"email": user.Email,
 		},
 	})
-}
-
-// generateJWT генерирует JWT токен для пользователя
-func generateJWT(userID uuid.UUID) (string, error) {
-	// TODO: Реализовать генерацию JWT токена
-	return "", nil
 }
 
 // validateUserCreate проверяет корректность данных пользователя

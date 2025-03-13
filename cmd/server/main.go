@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/yourusername/todo-list/internal/auth"
-	
+
 	"github.com/yourusername/todo-list/internal/config"
 	"github.com/yourusername/todo-list/internal/handlers"
 	"github.com/yourusername/todo-list/internal/middleware"
@@ -32,8 +32,9 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
-// Инициализация JWT менеджера
-	jwtManager := auth.NewJW
+
+	// Инициализация JWT менеджера
+	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiration)
 
 	// Инициализация Fiber
 	app := fiber.New(fiber.Config{
@@ -66,7 +67,7 @@ func main() {
 
 	// Инициализация обработчиков
 	todoHandler := handlers.NewTodoHandler(todoRepo)
-	userHandler := handlers.NewUserHandler(userRepo)
+	userHandler := handlers.NewUserHandler(userRepo, jwtManager)
 
 	// Публичные маршруты (без авторизации)
 	app.Post("/users/register", userHandler.Register)
