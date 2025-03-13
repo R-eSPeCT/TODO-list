@@ -1,38 +1,11 @@
 # TODO List API
 
-REST API и gRPC сервис для управления списком задач с поддержкой пользователей и аутентификации.
+REST API для управления списком задач с поддержкой пользователей и аутентификации.
 
 ## Требования
 
 - Go 1.21 или выше
 - PostgreSQL 12 или выше
-- Redis 6 или выше
-- Protocol Buffers compiler (protoc)
-
-## Установка protoc
-
-### Windows
-```bash
-# Скачайте последнюю версию с https://github.com/protocolbuffers/protobuf/releases
-# Распакуйте архив и добавьте bin директорию в PATH
-
-# Установите Go плагины для protoc
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-```
-
-### Linux/macOS
-```bash
-# Linux
-apt-get install -y protobuf-compiler
-
-# macOS
-brew install protobuf
-
-# Установите Go плагины для protoc
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-```
 
 ## Установка
 
@@ -47,23 +20,14 @@ cd TODO-list
 go mod download
 ```
 
-3. Сгенерируйте код из proto файлов:
-```bash
-# Сделайте скрипт исполняемым (для Linux/macOS)
-chmod +x scripts/protoc.sh
-
-# Запустите генерацию
-./scripts/protoc.sh
-```
-
-4. Создайте базу данных PostgreSQL:
+3. Создайте базу данных PostgreSQL:
 ```sql
 CREATE DATABASE todo_list;
 ```
 
-5. Настройте переменные окружения:
+4. Настройте переменные окружения:
 - Скопируйте файл `.env.example` в `.env`
-- Отредактируйте параметры подключения к базе данных и Redis в `.env`
+- Отредактируйте параметры подключения к базе данных в `.env`
 
 ## Запуск
 
@@ -71,9 +35,7 @@ CREATE DATABASE todo_list;
 go run main.go
 ```
 
-Сервер запустится на:
-- REST API: порт 3000 (или указанный в PORT)
-- gRPC: порт 50051 (или указанный в GRPC_PORT)
+Сервер запустится на порту 3000 (или на порту, указанном в переменной окружения PORT).
 
 ## API Endpoints
 

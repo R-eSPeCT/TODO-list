@@ -11,7 +11,6 @@ require (
 	golang.org/x/crypto v0.19.0
 	google.golang.org/grpc v1.61.0
 	google.golang.org/protobuf v1.32.0
-	google.golang.org/genproto v0.0.0-20240205150955-31a09d347014
 )
 
 require (
