@@ -117,12 +117,11 @@ func TestNewConfig(t *testing.T) {
 			assert.Equal(t, tt.env["PORT"], config.Port)
 			assert.Equal(t, tt.env["DATABASE_URL"], config.DatabaseURL)
 			assert.Equal(t, tt.env["REDIS_URL"], config.RedisURL)
-			assert.Equal(t, tt.env["JWT_SECRET_KEY"], config.JWTSecretKey)
-			assert.Equal(t, tt.env["JWT_TOKEN_DURATION"], config.JWTTokenDuration)
-			assert.Equal(t, tt.env["GRPC_PORT"], config.GRPCConfig.Port)
-			assert.Equal(t, tt.env["GRPC_MAX_REQUEST_SIZE"], config.GRPCConfig.MaxRequestSize)
-			assert.Equal(t, tt.env["GRPC_KEEP_ALIVE"], config.GRPCConfig.KeepAlive)
-			assert.Equal(t, tt.env["GRPC_KEEP_ALIVE_TIMEOUT"], config.GRPCConfig.KeepAliveTimeout)
+			assert.Equal(t, tt.env["JWT_SECRET_KEY"], config.JWTSecret)
+			assert.Equal(t, tt.env["GRPC_PORT"], config.GRPC.Port)
+			assert.Equal(t, tt.env["GRPC_MAX_REQUEST_SIZE"], config.GRPC.MaxRequestSize)
+			assert.Equal(t, tt.env["GRPC_KEEP_ALIVE"], config.GRPC.KeepAlive)
+			assert.Equal(t, tt.env["GRPC_KEEP_ALIVE_TIMEOUT"], config.GRPC.KeepAliveTimeout)
 		})
 	}
 }
