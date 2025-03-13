@@ -2,13 +2,11 @@ package models
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // User представляет пользователя в системе
 type User struct {
-	ID        uuid.UUID `json:"id" db:"id"`
+	ID        string    `json:"id" db:"id"`
 	Email     string    `json:"email" db:"email"`
 	Password  string    `json:"-" db:"password"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`

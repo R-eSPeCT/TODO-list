@@ -9,7 +9,7 @@ import (
 
 // Claims представляет структуру JWT claims
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
+	UserID string `json:"user_id"`
 	jwt.StandardClaims
 }
 
@@ -27,7 +27,7 @@ func NewJWTManager(secretKey string, tokenDuration time.Duration) *JWTManager {
 
 func (m *JWTManager) Generate(userID uuid.UUID) (string, error) {
 	claims := &Claims{
-		UserID: userID,
+		UserID: userID.String(),
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(m.tokenDuration).Unix(),
 			IssuedAt:  time.Now().Unix(),
@@ -60,4 +60,33 @@ func (m *JWTManager) Validate(tokenString string) (*Claims, error) {
 	}
 
 	return nil, fmt.Errorf("invalid token claims")
+}
+
+func GenerateToken(userID string, key []byte) (string, error) {
+	claims := Claims{
+		UserID: userID,
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(key)
+}
+
+func ValidateToken(tokenString string, key []byte) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, jwt.ErrSignatureInvalid
 }

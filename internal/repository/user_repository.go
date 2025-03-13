@@ -3,27 +3,15 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
-	"github.com/google/uuid"
-	"github.com/yourusername/todo-list/internal/models"
-	"strings"
-)
+	"time"
 
-// UserRepository определяет интерфейс для работы с пользователями
-type UserRepository interface {
-	Create(ctx context.Context, user *models.User) error
-	GetByID(ctx context.Context, id string) (*models.User, error)
-	GetByEmail(ctx context.Context, email string) (*models.User, error)
-	Update(ctx context.Context, user *models.User) error
-	Delete(ctx context.Context, id string) error
-}
+	"github.com/yourusername/todo-list/internal/models"
+)
 
 type userRepository struct {
 	db *sql.DB
 }
 
-// NewUserRepository создает новый экземпляр UserRepository
 func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
@@ -33,25 +21,39 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 		INSERT INTO users (id, email, password, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
 	`
+	now := time.Now()
 	_, err := r.db.ExecContext(ctx, query,
-		user.ID, user.Email, user.Password,
-		user.CreatedAt, user.UpdatedAt,
+		user.ID,
+		user.Email,
+		user.Password,
+		now,
+		now,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	user.CreatedAt = now
+	user.UpdatedAt = now
+	return nil
 }
 
 func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
 	user := &models.User{}
 	query := `
 		SELECT id, email, password, created_at, updated_at
-		FROM users WHERE id = $1
+		FROM users
+		WHERE id = $1
 	`
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.Password,
-		&user.CreatedAt, &user.UpdatedAt,
+		&user.ID,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
@@ -63,14 +65,18 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 	user := &models.User{}
 	query := `
 		SELECT id, email, password, created_at, updated_at
-		FROM users WHERE email = $1
+		FROM users
+		WHERE email = $1
 	`
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.Password,
-		&user.CreatedAt, &user.UpdatedAt,
+		&user.ID,
+		&user.Email,
+		&user.Password,
+		&user.CreatedAt,
+		&user.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found")
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
@@ -84,20 +90,26 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) error {
 		SET email = $1, password = $2, updated_at = $3
 		WHERE id = $4
 	`
+	now := time.Now()
 	result, err := r.db.ExecContext(ctx, query,
-		user.Email, user.Password, user.UpdatedAt,
+		user.Email,
+		user.Password,
+		now,
 		user.ID,
 	)
 	if err != nil {
 		return err
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
 	if rows == 0 {
-		return fmt.Errorf("user not found")
+		return sql.ErrNoRows
 	}
+
+	user.UpdatedAt = now
 	return nil
 }
 
@@ -107,21 +119,14 @@ func (r *userRepository) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
 	if rows == 0 {
-		return fmt.Errorf("user not found")
+		return sql.ErrNoRows
 	}
-	return nil
-}
 
-// isUniqueViolation проверяет, является ли ошибка нарушением уникального ограничения
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	// Проверяем код ошибки PostgreSQL для нарушения уникального ограничения
-	return strings.Contains(err.Error(), "unique constraint")
+	return nil
 }
