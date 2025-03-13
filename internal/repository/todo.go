@@ -5,27 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/google/uuid"
-	"github.com/yourusername/todo-list/internal/models"
 )
-
-// TodoRepository определяет интерфейс для работы с задачами
-type TodoRepository interface {
-	Create(ctx context.Context, todo *models.Todo) error
-	GetByID(ctx context.Context, id uuid.UUID) (*models.Todo, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Todo, error)
-	Update(ctx context.Context, todo *models.Todo) error
-	Delete(ctx context.Context, id uuid.UUID) error
-	GetGroupedByStatus(ctx context.Context, userID uuid.UUID) (map[string][]models.Todo, error)
-}
 
 type todoRepository struct {
 	db *sql.DB
-}
-
-// NewTodoRepository создает новый экземпляр TodoRepository
-func NewTodoRepository(db *sql.DB) TodoRepository {
-	return &todoRepository{db: db}
 }
 
 func (r *todoRepository) Create(ctx context.Context, todo *models.Todo) error {

@@ -4,44 +4,52 @@ package auth;
 
 option go_package = "github.com/yourusername/todo-list/pkg/proto/auth";
 
+// AuthService предоставляет методы для аутентификации
 service AuthService {
+  // Register регистрирует нового пользователя
   rpc Register(RegisterRequest) returns (RegisterResponse) {}
+  
+  // Login аутентифицирует пользователя и возвращает JWT токен
   rpc Login(LoginRequest) returns (LoginResponse) {}
+  
+  // ValidateToken проверяет JWT токен
   rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse) {}
 }
 
+// RegisterRequest содержит данные для регистрации
 message RegisterRequest {
   string email = 1;
   string password = 2;
 }
 
+// RegisterResponse содержит результат регистрации
 message RegisterResponse {
-  string token = 1;
-  User user = 2;
+  string user_id = 1;
 }
 
+// LoginRequest содержит данные для входа
 message LoginRequest {
   string email = 1;
   string password = 2;
 }
 
+// LoginResponse содержит результат входа
 message LoginResponse {
   string token = 1;
   User user = 2;
 }
 
-message ValidateTokenRequest {
-  string token = 1;
-}
+// ValidateTokenRequest содержит токен для проверки
+message ValidateTokenRequest {}
 
+// ValidateTokenResponse содержит результат проверки токена
 message ValidateTokenResponse {
   bool valid = 1;
   User user = 2;
 }
 
+// User представляет пользователя
 message User {
   string id = 1;
   string email = 2;
-  string created_at = 3;
-  string updated_at = 4;
 } 

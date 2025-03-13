@@ -7,12 +7,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/R-eSPeCT/todo-list/internal/models"
+	"github.com/R-eSPeCT/todo-list/internal/repository/mocks"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/yourusername/todo-list/internal/models"
-	"github.com/yourusername/todo-list/internal/repository/mocks"
 )
 
 // setupTestServer создает тестовый сервер с моком репозитория

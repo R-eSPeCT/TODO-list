@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/R-eSPeCT/todo-list/internal/models"
+	"github.com/R-eSPeCT/todo-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/yourusername/todo-list/internal/models"
-	"github.com/yourusername/todo-list/internal/repository"
 )
 
 // TodoHandler представляет собой обработчик HTTP-запросов для работы с задачами (Todo).

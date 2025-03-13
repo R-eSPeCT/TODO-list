@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"TODO-list/internal/models"
 	"context"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"log"

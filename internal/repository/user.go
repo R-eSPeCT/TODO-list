@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/google/uuid"
-	"github.com/yourusername/todo-list/internal/models"
 	"strings"
 )
 

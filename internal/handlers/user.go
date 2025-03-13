@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"TODO-list/internal/repository"
+	"github.com/R-eSPeCT/todo-list/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/yourusername/todo-list/internal/auth"
 	"golang.org/x/crypto/bcrypt"
 	"internal/models"
 	"regexp"

@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
+	"github.com/R-eSPeCT/todo-list/internal/config"
+	"github.com/R-eSPeCT/todo-list/internal/repository"
 	_ "github.com/lib/pq"
-	"github.com/yourusername/todo-list/internal/auth"
-	"github.com/yourusername/todo-list/internal/config"
-	"github.com/yourusername/todo-list/internal/repository"
 )
 
 func main() {

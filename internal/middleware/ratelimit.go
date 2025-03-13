@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/R-eSPeCT/todo-list/pkg/cache"
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/todo-list/pkg/cache"
 )
 
 // RateLimitConfig конфигурация для rate limiting

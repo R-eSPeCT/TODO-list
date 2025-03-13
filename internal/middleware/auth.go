@@ -4,8 +4,8 @@ import (
 	"github.com/golang-jwt/jwt"
 	"strings"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/todo-list/internal/auth"
 )
 
 // AuthMiddleware проверяет JWT токен в заголовке Authorization

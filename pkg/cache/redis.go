@@ -3,8 +3,8 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"github.com/R-eSPeCT/todo-list/internal/config"
 	"github.com/redis/go-redis/v9"
-	"github.com/yourusername/todo-list/internal/config"
 	"time"
 )
 

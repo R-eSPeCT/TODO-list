@@ -1,4 +1,4 @@
-module github.com/yourusername/todo-list
+module github.com/R-eSPeCT/todo-list
 
 go 1.21
 

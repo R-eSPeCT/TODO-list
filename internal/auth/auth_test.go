@@ -2,18 +2,15 @@ package auth
 
 import (
 	"context"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"net"
 	"testing"
 	"time"
 
+	pb "github.com/R-eSPeCT/todo-list/pkg/proto/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/yourusername/todo-list/internal/models"
-	"github.com/yourusername/todo-list/internal/repository/mocks"
-	pb "github.com/yourusername/todo-list/pkg/proto/auth"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -76,16 +73,16 @@ func TestGRPCServer_Register(t *testing.T) {
 	conn := grpcTestServer.ClientConn()
 	defer conn.Close()
 
-	client := pb.NewAuthServiceClient(conn)
+	client := NewAuthServiceClient(conn)
 
 	tests := []struct {
 		name    string
-		req     *pb.RegisterRequest
+		req     *models.RegisterRequest
 		wantErr bool
 	}{
 		{
 			name: "valid registration",
-			req: &pb.RegisterRequest{
+			req: &models.RegisterRequest{
 				Email:    "test@example.com",
 				Password: "password123",
 			},
@@ -93,7 +90,7 @@ func TestGRPCServer_Register(t *testing.T) {
 		},
 		{
 			name: "invalid email",
-			req: &pb.RegisterRequest{
+			req: &models.RegisterRequest{
 				Email:    "invalid-email",
 				Password: "password123",
 			},
@@ -101,7 +98,7 @@ func TestGRPCServer_Register(t *testing.T) {
 		},
 		{
 			name: "empty password",
-			req: &pb.RegisterRequest{
+			req: Request{
 				Email:    "test@example.com",
 				Password: "",
 			},
@@ -137,7 +134,7 @@ func TestGRPCServer_Login(t *testing.T) {
 	conn := grpcTestServer.ClientConn()
 	defer conn.Close()
 
-	client := pb.NewAuthServiceClient(conn)
+	client := NewAuthServiceClient(conn)
 
 	tests := []struct {
 		name    string

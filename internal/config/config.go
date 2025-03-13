@@ -2,10 +2,9 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/yourusername/todo-list/pkg/env"
+	"github.com/R-eSPeCT/todo-list/pkg/env"
 )
 
 // Config содержит конфигурацию приложения.
@@ -44,7 +43,7 @@ type HTTPConfig struct {
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		Port:            env.GetEnvOrDefault("PORT", "3000"),
-		DatabaseURL:     env.GetEnvOrDefault("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/todo?sslmode=disable"),
+		DatabaseURL:     env.GetEnvOrDefault("DATABASE_URL", "postgres://postgres:Salamander0101@localhost:5432/todo?sslmode=disable"),
 		RedisURL:        env.GetEnvOrDefault("REDIS_URL", "redis://localhost:6379/0"),
 		JWTSecret:       env.GetEnvOrDefault("JWT_SECRET", "your-secret-key"),
 		JWTExpiration:   env.GetDurationEnvOrDefault("JWT_EXPIRATION", 24*time.Hour),
