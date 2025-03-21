@@ -87,8 +87,10 @@ func (s *GRPCServer) Register(ctx context.Context, email, password string) (*mod
 		return nil, status.Error(codes.Internal, "failed to hash password")
 	}
 
+	// Создаем нового пользователя
+	userID := uuid.New()
 	user := &models.User{
-		ID:        uuid.New(),
+		ID:        userID,
 		Email:     email,
 		Password:  string(hashedPassword),
 		CreatedAt: time.Now(),
@@ -125,7 +127,7 @@ func (s *GRPCServer) Login(ctx context.Context, email, password string) (string,
 	return token, nil
 }
 
-// ValidateToken проверяет JWT токен
+// ValidateJWTToken проверяет JWT токен
 func (s *GRPCServer) ValidateJWTToken(ctx context.Context, tokenString string) (*Claims, error) {
 	if tokenString == "" {
 		return nil, status.Error(codes.InvalidArgument, "token is required")

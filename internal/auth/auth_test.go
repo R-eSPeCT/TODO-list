@@ -26,7 +26,7 @@ type testServer struct {
 
 func NewTestServer(t *testing.T) *testServer {
 	lis := bufconn.Listen(bufSize)
-	server := NewGRPCServer(nil, nil) // Здесь можно добавить моки репозиториев если нужно
+	server := NewGRPCServer(nil, nil, nil) // Здесь можно добавить моки репозиториев если нужно
 	go func() {
 		if err := server.Serve(lis); err != nil {
 			t.Errorf("server exited with error: %v", err)
