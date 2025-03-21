@@ -1,21 +1,23 @@
-package handlers
+package handler
 
 import (
-	"TODO-list/internal/repository"
 	"github.com/R-eSPeCT/todo-list/internal/auth"
+	"github.com/R-eSPeCT/todo-list/internal/models"
+	"github.com/R-eSPeCT/todo-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"internal/models"
 	"regexp"
 	"time"
 )
 
+// UserHandler представляет собой обработчик HTTP-запросов для работы с пользователями.
 type UserHandler struct {
 	repo       repository.UserRepository
 	jwtManager *auth.JWTManager
 }
 
+// NewUserHandler создает новый экземпляр UserHandler.
 func NewUserHandler(repo repository.UserRepository, jwtManager *auth.JWTManager) *UserHandler {
 	return &UserHandler{
 		repo:       repo,
@@ -23,7 +25,7 @@ func NewUserHandler(repo repository.UserRepository, jwtManager *auth.JWTManager)
 	}
 }
 
-// Register обрабатывает регистрацию нового пользователя
+// Register обрабатывает регистрацию нового пользователя.
 func (h *UserHandler) Register(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
@@ -33,6 +35,13 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid request body",
+		})
+	}
+
+	// Проверяем корректность email
+	if !isValidEmail(input.Email) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid email format",
 		})
 	}
 
@@ -54,29 +63,31 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 
 	// Создаем нового пользователя
 	user := &models.User{
-		ID:           uuid.New(),
-		Email:        input.Email,
-		PasswordHash: string(hashedPassword),
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		ID:        uuid.New(),
+		Email:     input.Email,
+		Password:  string(hashedPassword),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	if err := h.repo.Create(c.Context(), user); err != nil {
+		if isUniqueViolation(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "User already exists",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to create user",
 		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"message": "User created successfully",
-		"user": fiber.Map{
-			"id":    user.ID,
-			"email": user.Email,
-		},
+		"id":    user.ID,
+		"email": user.Email,
 	})
 }
 
-// Login обрабатывает вход пользователя
+// Login обрабатывает вход пользователя.
 func (h *UserHandler) Login(c *fiber.Ctx) error {
 	var input struct {
 		Email    string `json:"email"`
@@ -89,7 +100,6 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Получаем пользователя
 	user, err := h.repo.GetByEmail(c.Context(), input.Email)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -97,15 +107,13 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Проверяем пароль
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": "Invalid credentials",
 		})
 	}
 
-	// Генерируем JWT токен
-	token, err := h.jwtManager.Generate(user.ID)
+	token, err := h.jwtManager.Generate(user)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to generate token",
@@ -114,42 +122,18 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"token": token,
-		"user": fiber.Map{
-			"id":    user.ID,
-			"email": user.Email,
-		},
 	})
 }
 
-// validateUserCreate проверяет корректность данных пользователя
-func validateUserCreate(user models.UserCreate) error {
-	if user.Username == "" || user.Email == "" || user.Password == "" {
-		return fiber.NewError(400, "All fields are required")
-	}
-
-	if len(user.Username) < 3 || len(user.Username) > 50 {
-		return fiber.NewError(400, "Username must be between 3 and 50 characters")
-	}
-
-	if !isValidEmail(user.Email) {
-		return fiber.NewError(400, "Invalid email format")
-	}
-
-	if len(user.Password) < 6 {
-		return fiber.NewError(400, "Password must be at least 6 characters long")
-	}
-
-	return nil
-}
-
-// isValidEmail проверяет корректность email
+// isValidEmail проверяет корректность email.
 func isValidEmail(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	matched, _ := regexp.MatchString(pattern, email)
+	return matched
 }
 
-// isUniqueViolation проверяет, является ли ошибка нарушением уникального ограничения
+// isUniqueViolation проверяет, является ли ошибка нарушением уникального ограничения.
 func isUniqueViolation(err error) bool {
-	// TODO: Добавить проверку на конкретный код ошибки PostgreSQL
-	return err != nil
+	// Реализация зависит от используемой базы данных
+	return false
 }
