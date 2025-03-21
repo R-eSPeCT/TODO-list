@@ -29,7 +29,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
 
 	// Проверяем соединение с базой данных
 	if err := db.Ping(); err != nil {
@@ -66,7 +70,7 @@ func main() {
 	go func() {
 		log.Printf("Starting gRPC server on port %d", cfg.GRPC.Port)
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("Failed to serve: %v", err)
+			log.Printf("Failed to serve: %v", err)
 		}
 	}()
 

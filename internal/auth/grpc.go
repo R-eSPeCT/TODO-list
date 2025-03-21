@@ -7,7 +7,6 @@ import (
 
 	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/R-eSPeCT/todo-list/internal/repository"
-	pb "github.com/R-eSPeCT/todo-list/pkg/proto/auth"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -20,7 +19,6 @@ import (
 
 // GRPCServer реализует gRPC сервер для аутентификации
 type GRPCServer struct {
-	pb.UnimplementedAuthServiceServer
 	userRepo   repository.UserRepository
 	jwtKey     []byte
 	grpcServer *grpc.Server
@@ -58,7 +56,6 @@ func NewGRPCServer(userRepo repository.UserRepository, jwtKey []byte, cfg Server
 		grpcServer: server,
 	}
 
-	pb.RegisterAuthServiceServer(server, s)
 	return s
 }
 
@@ -73,26 +70,26 @@ func (s *GRPCServer) Stop() {
 }
 
 // Register регистрирует нового пользователя
-func (s *GRPCServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
-	if req.Email == "" || req.Password == "" {
+func (s *GRPCServer) Register(ctx context.Context, email, password string) (*models.User, error) {
+	if email == "" || password == "" {
 		return nil, status.Error(codes.InvalidArgument, "email and password are required")
 	}
 
 	// Проверяем, существует ли пользователь
-	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	existingUser, err := s.userRepo.GetByEmail(ctx, email)
 	if err == nil && existingUser != nil {
 		return nil, status.Error(codes.AlreadyExists, "user already exists")
 	}
 
 	// Хешируем пароль
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to hash password")
 	}
 
 	user := &models.User{
 		ID:        uuid.New(),
-		Email:     req.Email,
+		Email:     email,
 		Password:  string(hashedPassword),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -102,52 +99,44 @@ func (s *GRPCServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
-	return &pb.RegisterResponse{
-		Id:    user.ID.String(),
-		Email: user.Email,
-	}, nil
+	return user, nil
 }
 
-// Login аутентифицирует пользователя и возвращает JWT токен
-func (s *GRPCServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	if req.Email == "" || req.Password == "" {
-		return nil, status.Error(codes.InvalidArgument, "email and password are required")
+// Login аутентифицирует пользователя
+func (s *GRPCServer) Login(ctx context.Context, email, password string) (string, error) {
+	if email == "" || password == "" {
+		return "", status.Error(codes.InvalidArgument, "email and password are required")
 	}
 
-	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "user not found")
+		return "", status.Error(codes.NotFound, "user not found")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return "", status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 
 	token, err := GenerateToken(user.ID.String(), user.Email, s.jwtKey)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to generate token")
+		return "", status.Error(codes.Internal, "failed to generate token")
 	}
 
-	return &pb.LoginResponse{
-		Token: token,
-	}, nil
+	return token, nil
 }
 
 // ValidateToken проверяет JWT токен
-func (s *GRPCServer) ValidateToken(ctx context.Context, req *pb.ValidateTokenRequest) (*pb.ValidateTokenResponse, error) {
-	if req.Token == "" {
+func (s *GRPCServer) ValidateJWTToken(ctx context.Context, tokenString string) (*Claims, error) {
+	if tokenString == "" {
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
-	claims, err := ValidateToken(req.Token, s.jwtKey)
+	claims, err := ValidateToken(tokenString, s.jwtKey)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
 
-	return &pb.ValidateTokenResponse{
-		UserId: claims.UserID,
-		Email:  claims.Email,
-	}, nil
+	return claims, nil
 }
 
 // UnaryServerInterceptor создает перехватчик для проверки JWT токена

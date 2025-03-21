@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package auth;
 
-option go_package = "github.com/yourusername/todo-list/pkg/proto/auth";
+option go_package = "github.com/R-eSPeCT/todo-list/pkg/proto/auth";
 
 // AuthService предоставляет методы для аутентификации
 service AuthService {
@@ -24,7 +24,8 @@ message RegisterRequest {
 
 // RegisterResponse содержит результат регистрации
 message RegisterResponse {
-  string user_id = 1;
+  string id = 1;
+  string email = 2;
 }
 
 // LoginRequest содержит данные для входа
@@ -36,20 +37,15 @@ message LoginRequest {
 // LoginResponse содержит результат входа
 message LoginResponse {
   string token = 1;
-  User user = 2;
 }
 
 // ValidateTokenRequest содержит токен для проверки
-message ValidateTokenRequest {}
+message ValidateTokenRequest {
+  string token = 1;
+}
 
 // ValidateTokenResponse содержит результат проверки токена
 message ValidateTokenResponse {
-  bool valid = 1;
-  User user = 2;
-}
-
-// User представляет пользователя
-message User {
-  string id = 1;
+  string user_id = 1;
   string email = 2;
-} 
+}
