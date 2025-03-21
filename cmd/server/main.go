@@ -39,8 +39,18 @@ func main() {
 	// Создаем репозитории
 	userRepo := repository.NewUserRepository(db)
 
+	// Создаем конфигурацию gRPC сервера
+	grpcConfig := auth.ServerConfig{
+		MaxConnectionIdle:     15 * time.Minute,
+		MaxConnectionAge:      30 * time.Minute,
+		MaxConnectionAgeGrace: 5 * time.Second,
+		Time:                  5 * time.Second,
+		Timeout:               1 * time.Second,
+		MaxRecvMsgSize:        4 * 1024 * 1024, // 4MB
+	}
+
 	// Создаем gRPC сервер
-	grpcServer := auth.NewGRPCServer(userRepo, []byte(cfg.GRPC.JWTSecretKey))
+	grpcServer := auth.NewGRPCServer(userRepo, []byte(cfg.GRPC.JWTSecretKey), grpcConfig)
 
 	// Создаем TCP listener для gRPC
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.GRPC.Port))
