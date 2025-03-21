@@ -10,13 +10,15 @@ import (
 // Claims представляет структуру JWT claims
 type Claims struct {
 	UserID string `json:"user_id"`
+	Email  string `json:"email"`
 	jwt.StandardClaims
 }
 
 // GenerateToken создает новый JWT токен
-func GenerateToken(userID string, key []byte) (string, error) {
+func GenerateToken(userID string, email string, key []byte) (string, error) {
 	claims := Claims{
 		UserID: userID,
+		Email:  email,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
 			IssuedAt:  time.Now().Unix(),

@@ -7,7 +7,7 @@ import (
 
 	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/R-eSPeCT/todo-list/internal/repository"
-	_ "github.com/R-eSPeCT/todo-list/pkg/proto/auth"
+	pb "github.com/R-eSPeCT/todo-list/pkg/proto/auth"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
