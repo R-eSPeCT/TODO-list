@@ -1,27 +1,27 @@
 package middleware
 
 import (
-	"github.com/golang-jwt/jwt"
 	"strings"
 
 	"github.com/R-eSPeCT/todo-list/internal/auth"
 	"github.com/gofiber/fiber/v2"
 )
 
-// AuthMiddleware проверяет JWT токен в заголовке Authorization
+// AuthMiddleware создает middleware для проверки JWT токена в заголовке Authorization.
+// Извлекает токен из заголовка, проверяет его валидность и добавляет ID пользователя в контекст.
 func AuthMiddleware(jwtManager *auth.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Authorization header is required",
+				"error": "Требуется заголовок Authorization",
 			})
 		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid authorization header format",
+				"error": "Неверный формат заголовка Authorization",
 			})
 		}
 
@@ -29,17 +29,12 @@ func AuthMiddleware(jwtManager *auth.JWTManager) fiber.Handler {
 		claims, err := jwtManager.Validate(token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid token",
+				"error": "Недействительный токен",
 			})
 		}
 
+		// Добавляем ID пользователя в контекст для использования в следующих обработчиках
 		c.Locals("userID", claims.UserID)
 		return c.Next()
 	}
-}
-
-// validateToken проверяет JWT токен
-func validateToken(tokenString string) (*jwt.Token, error) {
-	// TODO: Реализовать проверку JWT токена
-	return nil, nil
 }

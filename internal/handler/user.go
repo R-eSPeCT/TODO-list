@@ -38,6 +38,13 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Проверяем длину пароля
+	if len(input.Password) < 8 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Password must be at least 8 characters long",
+		})
+	}
+
 	// Проверяем корректность email
 	if !isValidEmail(input.Email) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -96,31 +103,39 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
+			"error": "Неверный формат запроса",
 		})
 	}
 
+	// Проверяем существование пользователя
 	user, err := h.repo.GetByEmail(c.Context(), input.Email)
 	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Ошибка при поиске пользователя",
+		})
+	}
+	if user == nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
+			"error": "Неверный email или пароль",
 		})
 	}
 
+	// Проверяем пароль
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Invalid credentials",
+			"error": "Неверный email или пароль",
 		})
 	}
 
+	// Генерируем JWT токен
 	token, err := h.jwtManager.Generate(user)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to generate token",
+			"error": "Ошибка при создании токена",
 		})
 	}
 
-	return c.JSON(fiber.Map{
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"token": token,
 	})
 }
