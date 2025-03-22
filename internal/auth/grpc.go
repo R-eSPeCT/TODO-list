@@ -35,7 +35,7 @@ type ServerConfig struct {
 }
 
 // NewGRPCServer создает новый экземпляр gRPC сервера
-func NewGRPCServer(userRepo repository.UserRepository, jwtKey []byte, cfg ServerConfig) *GRPCServer {
+func NewGRPCServer(userRepo repository.UserRepository, jwtKey []byte, cfg *ServerConfig) *GRPCServer {
 	keepaliveParams := keepalive.ServerParameters{
 		MaxConnectionIdle:     cfg.MaxConnectionIdle,
 		MaxConnectionAge:      cfg.MaxConnectionAge,
