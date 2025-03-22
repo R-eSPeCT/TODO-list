@@ -4,8 +4,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/golang-jwt/jwt"
 )
+
+// JWTManager handles JWT operations
+type JWTManager struct {
+	secretKey []byte
+}
+
+// NewJWTManager creates a new JWT manager
+func NewJWTManager(secretKey []byte) *JWTManager {
+	return &JWTManager{secretKey: secretKey}
+}
 
 // Claims представляет структуру JWT claims
 type Claims struct {
@@ -14,32 +25,32 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-// GenerateToken создает новый JWT токен
-func GenerateToken(userID string, email string, key []byte) (string, error) {
+// Generate создает новый JWT токен для пользователя
+func (m *JWTManager) Generate(user *models.User) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Email:  email,
+		UserID: user.ID.String(),
+		Email:  user.Email,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
 			IssuedAt:  time.Now().Unix(),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(key)
+	return token.SignedString(m.secretKey)
 }
 
-// ValidateToken проверяет JWT токен и возвращает claims
-func ValidateToken(tokenString string, key []byte) (*Claims, error) {
+// Validate проверяет JWT токен и возвращает claims
+func (m *JWTManager) Validate(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return key, nil
+		return m.secretKey, nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse token: %w", err)
+		return nil, err
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {

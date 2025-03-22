@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -20,28 +21,28 @@ type MockTodoRepository struct {
 	mock.Mock
 }
 
-func (m *MockTodoRepository) Create(ctx context.Context, todo *Todo) error {
+func (m *MockTodoRepository) Create(ctx context.Context, todo *models.Todo) error {
 	args := m.Called(ctx, todo)
 	return args.Error(0)
 }
 
-func (m *MockTodoRepository) GetByID(ctx context.Context, id uuid.UUID) (*Todo, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*Todo), args.Error(1)
-}
-
-func (m *MockTodoRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*Todo, error) {
+func (m *MockTodoRepository) GetAll(ctx context.Context, userID uuid.UUID) ([]*models.Todo, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]*Todo), args.Error(1)
+	return args.Get(0).([]*models.Todo), args.Error(1)
 }
 
-func (m *MockTodoRepository) Update(ctx context.Context, todo *Todo) error {
+func (m *MockTodoRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Todo, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Todo), args.Error(1)
+}
+
+func (m *MockTodoRepository) Update(ctx context.Context, todo *models.Todo) error {
 	args := m.Called(ctx, todo)
 	return args.Error(0)
 }
@@ -51,59 +52,54 @@ func (m *MockTodoRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
-func setupTestApp(t *testing.T) *fiber.App {
-	app := fiber.New()
-	return app
-}
-
 func TestTodoHandler_Create(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockTodoRepository)
-	handler := NewTodoHandler(mockRepo)
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewTodoHandler(mockRepo, jwtManager)
 
-	app.Post("/todos", handler.Create)
+	app := fiber.New()
+	app.Post("/todos", h.Create)
 
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
+		input      map[string]interface{}
 		token      string
-		payload    map[string]interface{}
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name:  "valid todo",
-			token: token,
-			payload: map[string]interface{}{
+			name: "успешное создание",
+			input: map[string]interface{}{
 				"title":       "Test Todo",
 				"description": "Test Description",
-				"status":      "pending",
-				"due_date":    time.Now().Add(24 * time.Hour),
 			},
+			token:      token,
 			wantStatus: http.StatusCreated,
 			setupMock: func() {
-				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*Todo")).Return(nil)
+				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
 			},
 		},
 		{
-			name:  "missing title",
-			token: token,
-			payload: map[string]interface{}{
+			name: "missing title",
+			input: map[string]interface{}{
 				"description": "Test Description",
-				"status":      "pending",
-				"due_date":    time.Now().Add(24 * time.Hour),
 			},
+			token:      token,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing token",
+			input:      map[string]interface{}{},
 			token:      "",
-			payload:    map[string]interface{}{},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
@@ -114,10 +110,8 @@ func TestTodoHandler_Create(t *testing.T) {
 				tt.setupMock()
 			}
 
-			body, err := json.Marshal(tt.payload)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPost, "/todos", bytes.NewReader(body))
+			jsonBody, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest("POST", "/todos", bytes.NewReader(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
@@ -133,17 +127,36 @@ func TestTodoHandler_Create(t *testing.T) {
 }
 
 func TestTodoHandler_GetAll(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockTodoRepository)
-	handler := NewTodoHandler(mockRepo)
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewTodoHandler(mockRepo, jwtManager)
 
-	app.Get("/todos", handler.GetAll)
+	app := fiber.New()
+	app.Get("/todos", h.GetAll)
 
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
+
+	todos := []*models.Todo{
+		{
+			ID:          uuid.New(),
+			UserID:      userID,
+			Title:       "Test Todo 1",
+			Description: "Test Description 1",
+		},
+		{
+			ID:          uuid.New(),
+			UserID:      userID,
+			Title:       "Test Todo 2",
+			Description: "Test Description 2",
+		},
+	}
 
 	tests := []struct {
 		name       string
@@ -152,11 +165,11 @@ func TestTodoHandler_GetAll(t *testing.T) {
 		setupMock  func()
 	}{
 		{
-			name:       "valid request",
+			name:       "успешное получение",
 			token:      token,
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				mockRepo.On("GetByUserID", mock.Anything, userID).Return([]*Todo{}, nil)
+				mockRepo.On("GetAll", mock.Anything, userID).Return(todos, nil)
 			},
 		},
 		{
@@ -172,7 +185,7 @@ func TestTodoHandler_GetAll(t *testing.T) {
 				tt.setupMock()
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/todos", nil)
+			req := httptest.NewRequest("GET", "/todos", nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
@@ -187,46 +200,56 @@ func TestTodoHandler_GetAll(t *testing.T) {
 }
 
 func TestTodoHandler_GetByID(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockTodoRepository)
-	handler := NewTodoHandler(mockRepo)
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewTodoHandler(mockRepo, jwtManager)
 
-	app.Get("/todos/:id", handler.GetByID)
+	app := fiber.New()
+	app.Get("/todos/:id", h.GetByID)
 
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
 
 	todoID := uuid.New()
+	todo := &models.Todo{
+		ID:          todoID,
+		UserID:      userID,
+		Title:       "Test Todo",
+		Description: "Test Description",
+	}
 
 	tests := []struct {
 		name       string
-		token      string
 		todoID     string
+		token      string
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name:       "valid request",
-			token:      token,
+			name:       "успешное получение",
 			todoID:     todoID.String(),
+			token:      token,
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				mockRepo.On("GetByID", mock.Anything, todoID).Return(&Todo{}, nil)
+				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
 			},
 		},
 		{
 			name:       "invalid todo id",
-			token:      token,
 			todoID:     "invalid-id",
+			token:      token,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing token",
-			token:      "",
 			todoID:     todoID.String(),
+			token:      "",
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
@@ -237,7 +260,7 @@ func TestTodoHandler_GetByID(t *testing.T) {
 				tt.setupMock()
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/todos/"+tt.todoID, nil)
+			req := httptest.NewRequest("GET", "/todos/"+tt.todoID, nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
@@ -252,57 +275,66 @@ func TestTodoHandler_GetByID(t *testing.T) {
 }
 
 func TestTodoHandler_Update(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockTodoRepository)
-	handler := NewTodoHandler(mockRepo)
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewTodoHandler(mockRepo, jwtManager)
 
-	app.Put("/todos/:id", handler.Update)
+	app := fiber.New()
+	app.Put("/todos/:id", h.Update)
 
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
 
 	todoID := uuid.New()
+	todo := &models.Todo{
+		ID:          todoID,
+		UserID:      userID,
+		Title:       "Test Todo",
+		Description: "Test Description",
+	}
 
 	tests := []struct {
 		name       string
-		token      string
 		todoID     string
-		payload    map[string]interface{}
+		input      map[string]interface{}
+		token      string
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name:   "valid update",
-			token:  token,
+			name:   "успешное обновление",
 			todoID: todoID.String(),
-			payload: map[string]interface{}{
+			input: map[string]interface{}{
 				"title":       "Updated Todo",
 				"description": "Updated Description",
-				"status":      "completed",
-				"due_date":    time.Now().Add(48 * time.Hour),
 			},
+			token:      token,
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*Todo")).Return(nil)
+				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
+				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
 			},
 		},
 		{
 			name:   "invalid todo id",
-			token:  token,
 			todoID: "invalid-id",
-			payload: map[string]interface{}{
+			input: map[string]interface{}{
 				"title": "Updated Todo",
 			},
+			token:      token,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing token",
-			token:      "",
 			todoID:     todoID.String(),
-			payload:    map[string]interface{}{},
+			input:      map[string]interface{}{},
+			token:      "",
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
@@ -313,10 +345,8 @@ func TestTodoHandler_Update(t *testing.T) {
 				tt.setupMock()
 			}
 
-			body, err := json.Marshal(tt.payload)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPut, "/todos/"+tt.todoID, bytes.NewReader(body))
+			jsonBody, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest("PUT", "/todos/"+tt.todoID, bytes.NewReader(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
@@ -332,43 +362,68 @@ func TestTodoHandler_Update(t *testing.T) {
 }
 
 func TestTodoHandler_Delete(t *testing.T) {
-	app := setupTestApp(t)
-	handler := NewTodoHandler(nil) // Мокаем репозиторий
+	mockRepo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewTodoHandler(mockRepo, jwtManager)
 
-	app.Delete("/todos/:id", handler.Delete)
+	app := fiber.New()
+	app.Delete("/todos/:id", h.Delete)
 
-	token := "test-token"
+	userID := uuid.New()
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	token, err := jwtManager.Generate(testUser)
+	require.NoError(t, err)
+
 	todoID := uuid.New()
+	todo := &models.Todo{
+		ID:          todoID,
+		UserID:      userID,
+		Title:       "Test Todo",
+		Description: "Test Description",
+	}
 
 	tests := []struct {
 		name       string
-		token      string
 		todoID     string
+		token      string
 		wantStatus int
+		setupMock  func()
 	}{
 		{
-			name:       "valid delete",
-			token:      token,
+			name:       "успешное удаление",
 			todoID:     todoID.String(),
+			token:      token,
 			wantStatus: http.StatusOK,
+			setupMock: func() {
+				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
+				mockRepo.On("Delete", mock.Anything, todoID).Return(nil)
+			},
 		},
 		{
 			name:       "invalid todo id",
-			token:      token,
 			todoID:     "invalid-id",
+			token:      token,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "missing token",
-			token:      "",
 			todoID:     todoID.String(),
+			token:      "",
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodDelete, "/todos/"+tt.todoID, nil)
+			if tt.setupMock != nil {
+				tt.setupMock()
+			}
+
+			req := httptest.NewRequest("DELETE", "/todos/"+tt.todoID, nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
@@ -376,6 +431,8 @@ func TestTodoHandler_Delete(t *testing.T) {
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			mockRepo.AssertExpectations(t)
 		})
 	}
 }

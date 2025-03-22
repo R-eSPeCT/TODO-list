@@ -20,7 +20,7 @@ import (
 // GRPCServer реализует gRPC сервер для аутентификации
 type GRPCServer struct {
 	userRepo   repository.UserRepository
-	jwtKey     []byte
+	jwtManager *JWTManager
 	grpcServer *grpc.Server
 }
 
@@ -52,7 +52,7 @@ func NewGRPCServer(userRepo repository.UserRepository, jwtKey []byte, cfg Server
 
 	s := &GRPCServer{
 		userRepo:   userRepo,
-		jwtKey:     jwtKey,
+		jwtManager: NewJWTManager(jwtKey),
 		grpcServer: server,
 	}
 
@@ -119,7 +119,7 @@ func (s *GRPCServer) Login(ctx context.Context, email, password string) (string,
 		return "", status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 
-	token, err := GenerateToken(user.ID.String(), user.Email, s.jwtKey)
+	token, err := s.jwtManager.Generate(user)
 	if err != nil {
 		return "", status.Error(codes.Internal, "failed to generate token")
 	}
@@ -133,7 +133,7 @@ func (s *GRPCServer) ValidateJWTToken(ctx context.Context, tokenString string) (
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
-	claims, err := ValidateToken(tokenString, s.jwtKey)
+	claims, err := s.jwtManager.Validate(tokenString)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}

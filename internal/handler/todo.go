@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
 	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/R-eSPeCT/todo-list/internal/repository"
 	"github.com/gofiber/fiber/v2"
@@ -12,28 +13,23 @@ import (
 
 // TodoHandler представляет собой обработчик HTTP-запросов для работы с задачами (Todo).
 type TodoHandler struct {
-	repo repository.TodoRepository
+	repo       repository.TodoRepository
+	jwtManager *auth.JWTManager
 }
 
-// NewTodoHandler создает новый экземпляр TodoHandler с использованием репозитория.
-func NewTodoHandler(repo repository.TodoRepository) *TodoHandler {
-	return &TodoHandler{repo: repo}
+// NewTodoHandler создает новый экземпляр TodoHandler с использованием репозитория и менеджера JWT.
+func NewTodoHandler(repo repository.TodoRepository, jwtManager *auth.JWTManager) *TodoHandler {
+	return &TodoHandler{
+		repo:       repo,
+		jwtManager: jwtManager,
+	}
 }
 
 // GetTodos обрабатывает GET-запрос для получения списка всех задач пользователя.
 func (h *TodoHandler) GetTodos(c *fiber.Ctx) error {
-	userIDStr, ok := c.Locals("userID").(string)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized",
-		})
-	}
-
-	userID, err := uuid.Parse(userIDStr)
+	userID, err := h.getUserIDFromToken(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid user ID format",
-		})
+		return err
 	}
 
 	ctx := context.Background()
@@ -62,18 +58,9 @@ func (h *TodoHandler) CreateTodo(c *fiber.Ctx) error {
 		})
 	}
 
-	userIDStr, ok := c.Locals("userID").(string)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized",
-		})
-	}
-
-	userID, err := uuid.Parse(userIDStr)
+	userID, err := h.getUserIDFromToken(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid user ID format",
-		})
+		return err
 	}
 
 	if !isValidStatus(input.Status) {
@@ -216,18 +203,9 @@ func (h *TodoHandler) GetTodoByID(c *fiber.Ctx) error {
 
 // GetGroupedTodos обрабатывает GET-запрос для получения сгруппированных задач.
 func (h *TodoHandler) GetGroupedTodos(c *fiber.Ctx) error {
-	userIDStr, ok := c.Locals("userID").(string)
-	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"error": "Unauthorized",
-		})
-	}
-
-	userID, err := uuid.Parse(userIDStr)
+	userID, err := h.getUserIDFromToken(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid user ID format",
-		})
+		return err
 	}
 
 	todos, err := h.repo.GetByUserID(c.Context(), userID)
@@ -244,4 +222,28 @@ func (h *TodoHandler) GetGroupedTodos(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(grouped)
+}
+
+func (h *TodoHandler) getUserIDFromToken(c *fiber.Ctx) (uuid.UUID, error) {
+	token := c.Get("Authorization")
+	if token == "" {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Missing token")
+	}
+
+	if len(token) <= 7 || token[:7] != "Bearer " {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid token format")
+	}
+
+	token = token[7:]
+	claims, err := h.jwtManager.Validate(token)
+	if err != nil {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid token")
+	}
+
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		return uuid.Nil, fiber.NewError(fiber.StatusUnauthorized, "Invalid user ID in token")
+	}
+
+	return userID, nil
 }

@@ -140,6 +140,94 @@ func (h *UserHandler) Login(c *fiber.Ctx) error {
 	})
 }
 
+// GetProfile обрабатывает получение профиля пользователя
+func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Неверный формат ID пользователя",
+		})
+	}
+
+	user, err := h.repo.GetByID(c.Context(), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Ошибка при получении профиля",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"user": user,
+	})
+}
+
+// UpdateProfile обрабатывает обновление профиля пользователя
+func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Неверный формат ID пользователя",
+		})
+	}
+
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Неверный формат запроса",
+		})
+	}
+
+	if input.Email != "" && !isValidEmail(input.Email) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Неверный формат email",
+		})
+	}
+
+	user, err := h.repo.GetByID(c.Context(), id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Ошибка при получении профиля",
+		})
+	}
+
+	if input.Email != "" {
+		user.Email = input.Email
+	}
+
+	if input.Password != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Ошибка при хешировании пароля",
+			})
+		}
+		user.Password = string(hashedPassword)
+	}
+
+	user.UpdatedAt = time.Now()
+
+	if err := h.repo.Update(c.Context(), user); err != nil {
+		if isUniqueViolation(err) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": "Email уже используется",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Ошибка при обновлении профиля",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"user": user,
+	})
+}
+
 // isValidEmail проверяет корректность email.
 func isValidEmail(email string) bool {
 	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`

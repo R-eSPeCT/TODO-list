@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -19,28 +21,28 @@ type MockUserRepository struct {
 	mock.Mock
 }
 
-func (m *MockUserRepository) Create(ctx context.Context, user *User) error {
+func (m *MockUserRepository) Create(ctx context.Context, user *models.User) error {
 	args := m.Called(ctx, user)
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
+func (m *MockUserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*User), args.Error(1)
+	return args.Get(0).(*models.User), args.Error(1)
 }
 
-func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
+func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*User), args.Error(1)
+	return args.Get(0).(*models.User), args.Error(1)
 }
 
-func (m *MockUserRepository) Update(ctx context.Context, user *User) error {
+func (m *MockUserRepository) Update(ctx context.Context, user *models.User) error {
 	args := m.Called(ctx, user)
 	return args.Error(0)
 }
@@ -50,38 +52,42 @@ func (m *MockUserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
-func setupTestApp(t *testing.T) *fiber.App {
+func setupTestApp(t *testing.T, repo *MockUserRepository) *fiber.App {
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	h := NewUserHandler(repo, jwtManager)
+
 	app := fiber.New()
+	app.Post("/register", h.Register)
+	app.Post("/login", h.Login)
+	app.Get("/profile", h.GetProfile)
+	app.Put("/profile", h.UpdateProfile)
 	return app
 }
 
 func TestUserHandler_Register(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockUserRepository)
-	handler := NewUserHandler(mockRepo)
-
-	app.Post("/register", handler.Register)
+	app := setupTestApp(t, mockRepo)
 
 	tests := []struct {
 		name       string
-		payload    map[string]interface{}
+		input      map[string]string
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name: "valid registration",
-			payload: map[string]interface{}{
+			name: "успешная регистрация",
+			input: map[string]string{
 				"email":    "test@example.com",
 				"password": "password123",
 			},
 			wantStatus: http.StatusCreated,
 			setupMock: func() {
-				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*User")).Return(nil)
+				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.User")).Return(nil)
 			},
 		},
 		{
 			name: "invalid email",
-			payload: map[string]interface{}{
+			input: map[string]string{
 				"email":    "invalid-email",
 				"password": "password123",
 			},
@@ -89,7 +95,7 @@ func TestUserHandler_Register(t *testing.T) {
 		},
 		{
 			name: "short password",
-			payload: map[string]interface{}{
+			input: map[string]string{
 				"email":    "test@example.com",
 				"password": "123",
 			},
@@ -103,10 +109,8 @@ func TestUserHandler_Register(t *testing.T) {
 				tt.setupMock()
 			}
 
-			body, err := json.Marshal(tt.payload)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewReader(body))
+			jsonBody, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest("POST", "/register", bytes.NewReader(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -119,42 +123,39 @@ func TestUserHandler_Register(t *testing.T) {
 }
 
 func TestUserHandler_Login(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockUserRepository)
-	handler := NewUserHandler(mockRepo)
+	app := setupTestApp(t, mockRepo)
 
-	app.Post("/login", handler.Login)
-
-	// Создаем тестового пользователя
 	userID := uuid.New()
 	email := "test@example.com"
 	password := "password123"
+	hashedPassword := "$2a$10$..." // Replace with actual hashed password
 
 	tests := []struct {
 		name       string
-		payload    map[string]interface{}
+		input      map[string]string
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name: "valid login",
-			payload: map[string]interface{}{
+			name: "успешный вход",
+			input: map[string]string{
 				"email":    email,
 				"password": password,
 			},
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				user := &User{
+				user := &models.User{
 					ID:       userID,
 					Email:    email,
-					Password: password,
+					Password: hashedPassword,
 				}
 				mockRepo.On("GetByEmail", mock.Anything, email).Return(user, nil)
 			},
 		},
 		{
 			name: "invalid email",
-			payload: map[string]interface{}{
+			input: map[string]string{
 				"email":    "invalid@example.com",
 				"password": password,
 			},
@@ -165,16 +166,16 @@ func TestUserHandler_Login(t *testing.T) {
 		},
 		{
 			name: "invalid password",
-			payload: map[string]interface{}{
+			input: map[string]string{
 				"email":    email,
 				"password": "wrongpassword",
 			},
 			wantStatus: http.StatusUnauthorized,
 			setupMock: func() {
-				user := &User{
+				user := &models.User{
 					ID:       userID,
 					Email:    email,
-					Password: password,
+					Password: hashedPassword,
 				}
 				mockRepo.On("GetByEmail", mock.Anything, email).Return(user, nil)
 			},
@@ -187,10 +188,8 @@ func TestUserHandler_Login(t *testing.T) {
 				tt.setupMock()
 			}
 
-			body, err := json.Marshal(tt.payload)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewReader(body))
+			jsonBody, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest("POST", "/login", bytes.NewReader(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 
 			resp, err := app.Test(req)
@@ -203,16 +202,17 @@ func TestUserHandler_Login(t *testing.T) {
 }
 
 func TestUserHandler_GetProfile(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockUserRepository)
-	handler := NewUserHandler(mockRepo)
+	app := setupTestApp(t, mockRepo)
 
-	app.Get("/profile", handler.GetProfile)
-
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -222,15 +222,11 @@ func TestUserHandler_GetProfile(t *testing.T) {
 		setupMock  func()
 	}{
 		{
-			name:       "valid request",
+			name:       "успешное получение профиля",
 			token:      token,
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				user := &User{
-					ID:    userID,
-					Email: "test@example.com",
-				}
-				mockRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
+				mockRepo.On("GetByID", mock.Anything, userID).Return(testUser, nil)
 			},
 		},
 		{
@@ -251,7 +247,7 @@ func TestUserHandler_GetProfile(t *testing.T) {
 				tt.setupMock()
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/profile", nil)
+			req := httptest.NewRequest("GET", "/profile", nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
@@ -266,51 +262,48 @@ func TestUserHandler_GetProfile(t *testing.T) {
 }
 
 func TestUserHandler_UpdateProfile(t *testing.T) {
-	app := setupTestApp(t)
 	mockRepo := new(MockUserRepository)
-	handler := NewUserHandler(mockRepo)
+	app := setupTestApp(t, mockRepo)
 
-	app.Put("/profile", handler.UpdateProfile)
-
-	// Генерируем валидный токен
 	userID := uuid.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
-	token, err := jwtManager.Generate(userID)
+	testUser := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+
+	jwtManager := auth.NewJWTManager([]byte("test_secret"))
+	token, err := jwtManager.Generate(testUser)
 	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
 		token      string
-		payload    map[string]interface{}
+		input      map[string]string
 		wantStatus int
 		setupMock  func()
 	}{
 		{
-			name:  "valid update",
+			name:  "успешное обновление профиля",
 			token: token,
-			payload: map[string]interface{}{
-				"email": "updated@example.com",
+			input: map[string]string{
+				"email": "newemail@example.com",
 			},
 			wantStatus: http.StatusOK,
 			setupMock: func() {
-				user := &User{
-					ID:    userID,
-					Email: "test@example.com",
-				}
-				mockRepo.On("GetByID", mock.Anything, userID).Return(user, nil)
-				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*User")).Return(nil)
+				mockRepo.On("GetByID", mock.Anything, userID).Return(testUser, nil)
+				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.User")).Return(nil)
 			},
 		},
 		{
 			name:       "missing token",
 			token:      "",
-			payload:    map[string]interface{}{},
+			input:      map[string]string{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:  "invalid email",
 			token: token,
-			payload: map[string]interface{}{
+			input: map[string]string{
 				"email": "invalid-email",
 			},
 			wantStatus: http.StatusBadRequest,
@@ -323,10 +316,8 @@ func TestUserHandler_UpdateProfile(t *testing.T) {
 				tt.setupMock()
 			}
 
-			body, err := json.Marshal(tt.payload)
-			require.NoError(t, err)
-
-			req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader(body))
+			jsonBody, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest("PUT", "/profile", bytes.NewReader(jsonBody))
 			req.Header.Set("Content-Type", "application/json")
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
