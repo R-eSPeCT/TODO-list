@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/R-eSPeCT/todo-list/internal/auth"
+	"github.com/R-eSPeCT/todo-list/internal/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -13,12 +15,16 @@ import (
 
 func TestAuthMiddleware(t *testing.T) {
 	app := fiber.New()
-	jwtManager := NewJWTManager("test-secret-key", "1h")
+	jwtManager := auth.NewJWTManager([]byte("test-secret-key"))
 	app.Use(AuthMiddleware(jwtManager))
 
 	// Генерируем валидный токен
 	userID := uuid.New()
-	validToken, err := jwtManager.Generate(userID)
+	user := &models.User{
+		ID:    userID,
+		Email: "test@example.com",
+	}
+	validToken, err := jwtManager.Generate(user)
 	require.NoError(t, err)
 
 	// Тестовый обработчик
@@ -76,32 +82,40 @@ func TestCorsMiddleware(t *testing.T) {
 	})
 
 	tests := []struct {
-		name            string
-		origin          string
-		method          string
-		wantAllowOrigin string
-		wantStatus      int
+		name             string
+		origin           string
+		method           string
+		wantAllowOrigin  string
+		wantAllowMethods string
+		wantAllowHeaders string
+		wantStatus       int
 	}{
 		{
-			name:            "allowed origin",
-			origin:          "http://localhost:3000",
-			method:          http.MethodGet,
-			wantAllowOrigin: "http://localhost:3000",
-			wantStatus:      http.StatusOK,
+			name:             "allowed origin",
+			origin:           "http://localhost:3000",
+			method:           http.MethodGet,
+			wantAllowOrigin:  "http://localhost:3000",
+			wantAllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+			wantAllowHeaders: "Origin,Content-Type,Accept,Authorization",
+			wantStatus:       http.StatusOK,
 		},
 		{
-			name:            "disallowed origin",
-			origin:          "http://malicious.com",
-			method:          http.MethodGet,
-			wantAllowOrigin: "",
-			wantStatus:      http.StatusOK,
+			name:             "disallowed origin",
+			origin:           "http://malicious.com",
+			method:           http.MethodGet,
+			wantAllowOrigin:  "",
+			wantAllowMethods: "",
+			wantAllowHeaders: "",
+			wantStatus:       http.StatusOK,
 		},
 		{
-			name:            "preflight request",
-			origin:          "http://localhost:3000",
-			method:          http.MethodOptions,
-			wantAllowOrigin: "http://localhost:3000",
-			wantStatus:      http.StatusOK,
+			name:             "preflight request",
+			origin:           "http://localhost:3000",
+			method:           http.MethodOptions,
+			wantAllowOrigin:  "http://localhost:3000",
+			wantAllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+			wantAllowHeaders: "Origin,Content-Type,Accept,Authorization",
+			wantStatus:       http.StatusOK,
 		},
 	}
 
@@ -116,6 +130,8 @@ func TestCorsMiddleware(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 			assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
+			assert.Equal(t, tt.wantAllowMethods, resp.Header.Get("Access-Control-Allow-Methods"))
+			assert.Equal(t, tt.wantAllowHeaders, resp.Header.Get("Access-Control-Allow-Headers"))
 		})
 	}
 }

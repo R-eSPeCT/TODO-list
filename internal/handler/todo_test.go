@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type MockTodoRepository struct {
@@ -28,9 +27,6 @@ func (m *MockTodoRepository) Create(ctx context.Context, todo *models.Todo) erro
 
 func (m *MockTodoRepository) GetAll(ctx context.Context, userID uuid.UUID) ([]*models.Todo, error) {
 	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
 	return args.Get(0).([]*models.Todo), args.Error(1)
 }
 
@@ -52,251 +48,214 @@ func (m *MockTodoRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
+func (m *MockTodoRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*models.Todo, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]*models.Todo), args.Error(1)
+}
+
+func (m *MockTodoRepository) GetGroupedTodos(ctx context.Context, userID uuid.UUID) ([]models.TodoGroup, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]models.TodoGroup), args.Error(1)
+}
+
 func TestTodoHandler_Create(t *testing.T) {
-	mockRepo := new(MockTodoRepository)
-	jwtManager := auth.NewJWTManager([]byte("test_secret"))
-	h := NewTodoHandler(mockRepo, jwtManager)
-
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
 	app := fiber.New()
-	app.Post("/todos", h.Create)
-
-	userID := uuid.New()
-	testUser := &models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
-
-	token, err := jwtManager.Generate(testUser)
-	require.NoError(t, err)
+	app.Post("/api/todos", handler.CreateTodo)
 
 	tests := []struct {
 		name       string
 		input      map[string]interface{}
 		token      string
-		wantStatus int
 		setupMock  func()
+		wantStatus int
 	}{
 		{
 			name: "успешное создание",
 			input: map[string]interface{}{
-				"title":       "Test Todo",
-				"description": "Test Description",
+				"title":       "Тестовая задача",
+				"description": "Описание тестовой задачи",
 			},
-			token:      token,
-			wantStatus: http.StatusCreated,
+			token: createTestToken(t, jwtManager),
 			setupMock: func() {
-				mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
+				repo.On("Create", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
 			},
+			wantStatus: http.StatusCreated,
 		},
 		{
-			name: "missing title",
-			input: map[string]interface{}{
-				"description": "Test Description",
-			},
-			token:      token,
+			name:       "неверный формат запроса",
+			input:      map[string]interface{}{},
+			token:      createTestToken(t, jwtManager),
+			setupMock:  func() {},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing token",
+			name:       "отсутствует токен",
 			input:      map[string]interface{}{},
 			token:      "",
+			setupMock:  func() {},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
-			}
+			tt.setupMock()
 
-			jsonBody, _ := json.Marshal(tt.input)
-			req := httptest.NewRequest("POST", "/todos", bytes.NewReader(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			body, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest(http.MethodPost, "/api/todos", bytes.NewReader(body))
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
 
 			resp, err := app.Test(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
-			mockRepo.AssertExpectations(t)
+			repo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestTodoHandler_GetAll(t *testing.T) {
-	mockRepo := new(MockTodoRepository)
-	jwtManager := auth.NewJWTManager([]byte("test_secret"))
-	h := NewTodoHandler(mockRepo, jwtManager)
-
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
 	app := fiber.New()
-	app.Get("/todos", h.GetAll)
+	app.Get("/api/todos", handler.GetAll)
 
 	userID := uuid.New()
-	testUser := &models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
-
-	token, err := jwtManager.Generate(testUser)
-	require.NoError(t, err)
-
 	todos := []*models.Todo{
 		{
 			ID:          uuid.New(),
+			Title:       "Задача 1",
+			Description: "Описание 1",
 			UserID:      userID,
-			Title:       "Test Todo 1",
-			Description: "Test Description 1",
-		},
-		{
-			ID:          uuid.New(),
-			UserID:      userID,
-			Title:       "Test Todo 2",
-			Description: "Test Description 2",
 		},
 	}
 
 	tests := []struct {
 		name       string
 		token      string
-		wantStatus int
 		setupMock  func()
+		wantStatus int
 	}{
 		{
-			name:       "успешное получение",
-			token:      token,
-			wantStatus: http.StatusOK,
+			name:  "успешное получение",
+			token: createTestToken(t, jwtManager),
 			setupMock: func() {
-				mockRepo.On("GetAll", mock.Anything, userID).Return(todos, nil)
+				repo.On("GetAll", mock.Anything, mock.AnythingOfType("uuid.UUID")).Return(todos, nil)
 			},
+			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "missing token",
+			name:       "отсутствует токен",
 			token:      "",
+			setupMock:  func() {},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
-			}
+			tt.setupMock()
 
-			req := httptest.NewRequest("GET", "/todos", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/todos", nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
 
 			resp, err := app.Test(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
-			mockRepo.AssertExpectations(t)
+			repo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestTodoHandler_GetByID(t *testing.T) {
-	mockRepo := new(MockTodoRepository)
-	jwtManager := auth.NewJWTManager([]byte("test_secret"))
-	h := NewTodoHandler(mockRepo, jwtManager)
-
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
 	app := fiber.New()
-	app.Get("/todos/:id", h.GetByID)
-
-	userID := uuid.New()
-	testUser := &models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
-
-	token, err := jwtManager.Generate(testUser)
-	require.NoError(t, err)
+	app.Get("/api/todos/:id", handler.GetByID)
 
 	todoID := uuid.New()
+	userID := uuid.New()
 	todo := &models.Todo{
 		ID:          todoID,
+		Title:       "Тестовая задача",
+		Description: "Описание задачи",
 		UserID:      userID,
-		Title:       "Test Todo",
-		Description: "Test Description",
 	}
 
 	tests := []struct {
 		name       string
 		todoID     string
 		token      string
-		wantStatus int
 		setupMock  func()
+		wantStatus int
 	}{
 		{
-			name:       "успешное получение",
-			todoID:     todoID.String(),
-			token:      token,
-			wantStatus: http.StatusOK,
+			name:   "успешное получение",
+			todoID: todoID.String(),
+			token:  createTestToken(t, jwtManager),
 			setupMock: func() {
-				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
+				repo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
 			},
+			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "invalid todo id",
+			name:       "неверный ID",
 			todoID:     "invalid-id",
-			token:      token,
+			token:      createTestToken(t, jwtManager),
+			setupMock:  func() {},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing token",
+			name:       "отсутствует токен",
 			todoID:     todoID.String(),
 			token:      "",
+			setupMock:  func() {},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
-			}
+			tt.setupMock()
 
-			req := httptest.NewRequest("GET", "/todos/"+tt.todoID, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/todos/"+tt.todoID, nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
 
 			resp, err := app.Test(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
-			mockRepo.AssertExpectations(t)
+			repo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestTodoHandler_Update(t *testing.T) {
-	mockRepo := new(MockTodoRepository)
-	jwtManager := auth.NewJWTManager([]byte("test_secret"))
-	h := NewTodoHandler(mockRepo, jwtManager)
-
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
 	app := fiber.New()
-	app.Put("/todos/:id", h.Update)
-
-	userID := uuid.New()
-	testUser := &models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
-
-	token, err := jwtManager.Generate(testUser)
-	require.NoError(t, err)
+	app.Put("/api/todos/:id", handler.UpdateTodo)
 
 	todoID := uuid.New()
+	userID := uuid.New()
 	todo := &models.Todo{
 		ID:          todoID,
+		Title:       "Тестовая задача",
+		Description: "Описание задачи",
 		UserID:      userID,
-		Title:       "Test Todo",
-		Description: "Test Description",
 	}
 
 	tests := []struct {
@@ -304,135 +263,208 @@ func TestTodoHandler_Update(t *testing.T) {
 		todoID     string
 		input      map[string]interface{}
 		token      string
-		wantStatus int
 		setupMock  func()
+		wantStatus int
 	}{
 		{
 			name:   "успешное обновление",
 			todoID: todoID.String(),
 			input: map[string]interface{}{
-				"title":       "Updated Todo",
-				"description": "Updated Description",
+				"title":       "Обновленная задача",
+				"description": "Обновленное описание",
 			},
-			token:      token,
-			wantStatus: http.StatusOK,
+			token: createTestToken(t, jwtManager),
 			setupMock: func() {
-				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
-				mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
+				repo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
+				repo.On("Update", mock.Anything, mock.AnythingOfType("*models.Todo")).Return(nil)
 			},
+			wantStatus: http.StatusOK,
 		},
 		{
-			name:   "invalid todo id",
-			todoID: "invalid-id",
-			input: map[string]interface{}{
-				"title": "Updated Todo",
-			},
-			token:      token,
+			name:       "неверный ID",
+			todoID:     "invalid-id",
+			input:      map[string]interface{}{},
+			token:      createTestToken(t, jwtManager),
+			setupMock:  func() {},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing token",
+			name:       "отсутствует токен",
 			todoID:     todoID.String(),
 			input:      map[string]interface{}{},
 			token:      "",
+			setupMock:  func() {},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
-			}
+			tt.setupMock()
 
-			jsonBody, _ := json.Marshal(tt.input)
-			req := httptest.NewRequest("PUT", "/todos/"+tt.todoID, bytes.NewReader(jsonBody))
-			req.Header.Set("Content-Type", "application/json")
+			body, _ := json.Marshal(tt.input)
+			req := httptest.NewRequest(http.MethodPut, "/api/todos/"+tt.todoID, bytes.NewReader(body))
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
 
 			resp, err := app.Test(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
-			mockRepo.AssertExpectations(t)
+			repo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestTodoHandler_Delete(t *testing.T) {
-	mockRepo := new(MockTodoRepository)
-	jwtManager := auth.NewJWTManager([]byte("test_secret"))
-	h := NewTodoHandler(mockRepo, jwtManager)
-
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
 	app := fiber.New()
-	app.Delete("/todos/:id", h.Delete)
-
-	userID := uuid.New()
-	testUser := &models.User{
-		ID:    userID,
-		Email: "test@example.com",
-	}
-
-	token, err := jwtManager.Generate(testUser)
-	require.NoError(t, err)
+	app.Delete("/api/todos/:id", handler.DeleteTodo)
 
 	todoID := uuid.New()
+	userID := uuid.New()
 	todo := &models.Todo{
 		ID:          todoID,
+		Title:       "Тестовая задача",
+		Description: "Описание задачи",
 		UserID:      userID,
-		Title:       "Test Todo",
-		Description: "Test Description",
 	}
 
 	tests := []struct {
 		name       string
 		todoID     string
 		token      string
-		wantStatus int
 		setupMock  func()
+		wantStatus int
 	}{
 		{
-			name:       "успешное удаление",
-			todoID:     todoID.String(),
-			token:      token,
-			wantStatus: http.StatusOK,
+			name:   "успешное удаление",
+			todoID: todoID.String(),
+			token:  createTestToken(t, jwtManager),
 			setupMock: func() {
-				mockRepo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
-				mockRepo.On("Delete", mock.Anything, todoID).Return(nil)
+				repo.On("GetByID", mock.Anything, todoID).Return(todo, nil)
+				repo.On("Delete", mock.Anything, todoID).Return(nil)
 			},
+			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "invalid todo id",
+			name:       "неверный ID",
 			todoID:     "invalid-id",
-			token:      token,
+			token:      createTestToken(t, jwtManager),
+			setupMock:  func() {},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing token",
+			name:       "отсутствует токен",
 			todoID:     todoID.String(),
 			token:      "",
+			setupMock:  func() {},
 			wantStatus: http.StatusUnauthorized,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.setupMock != nil {
-				tt.setupMock()
-			}
+			tt.setupMock()
 
-			req := httptest.NewRequest("DELETE", "/todos/"+tt.todoID, nil)
+			req := httptest.NewRequest(http.MethodDelete, "/api/todos/"+tt.todoID, nil)
 			if tt.token != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.token)
 			}
 
 			resp, err := app.Test(req)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 
-			mockRepo.AssertExpectations(t)
+			repo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestTodoHandler_GetGroupedTodos(t *testing.T) {
+	repo := new(MockTodoRepository)
+	jwtManager := auth.NewJWTManager([]byte("test-key"))
+	handler := NewTodoHandler(repo, jwtManager)
+	app := fiber.New()
+	app.Get("/api/todos/grouped", handler.GetGroupedTodos)
+
+	userID := uuid.New()
+	groupedTodos := []models.TodoGroup{
+		{
+			Status: "pending",
+			Tasks: []*models.Todo{
+				{
+					ID:          uuid.New(),
+					Title:       "Задача 1",
+					Description: "Описание 1",
+					UserID:      userID,
+					Status:      "pending",
+				},
+			},
+		},
+		{
+			Status: "completed",
+			Tasks: []*models.Todo{
+				{
+					ID:          uuid.New(),
+					Title:       "Задача 2",
+					Description: "Описание 2",
+					UserID:      userID,
+					Status:      "completed",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		token      string
+		setupMock  func()
+		wantStatus int
+	}{
+		{
+			name:  "успешное получение",
+			token: createTestToken(t, jwtManager),
+			setupMock: func() {
+				repo.On("GetGroupedTodos", mock.Anything, mock.AnythingOfType("uuid.UUID")).Return(groupedTodos, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "отсутствует токен",
+			token:      "",
+			setupMock:  func() {},
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			req := httptest.NewRequest(http.MethodGet, "/api/todos/grouped", nil)
+			if tt.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.token)
+			}
+
+			resp, err := app.Test(req)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+
+			repo.AssertExpectations(t)
+		})
+	}
+}
+
+func createTestToken(t *testing.T, jwtManager *auth.JWTManager) string {
+	user := &models.User{
+		ID:    uuid.New(),
+		Email: "test@example.com",
+	}
+	token, err := jwtManager.Generate(user)
+	assert.NoError(t, err)
+	return token
 }

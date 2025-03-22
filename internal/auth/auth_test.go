@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"github.com/R-eSPeCT/todo-list/internal/models"
 	"net"
 	"testing"
 	"time"
@@ -73,16 +72,16 @@ func TestGRPCServer_Register(t *testing.T) {
 	conn := grpcTestServer.ClientConn()
 	defer conn.Close()
 
-	client := NewAuthServiceClient(conn)
+	client := pb.NewAuthServiceClient(conn)
 
 	tests := []struct {
 		name    string
-		req     *models.RegisterRequest
+		req     *pb.RegisterRequest
 		wantErr bool
 	}{
 		{
 			name: "valid registration",
-			req: &models.RegisterRequest{
+			req: &pb.RegisterRequest{
 				Email:    "test@example.com",
 				Password: "password123",
 			},
@@ -90,7 +89,7 @@ func TestGRPCServer_Register(t *testing.T) {
 		},
 		{
 			name: "invalid email",
-			req: &models.RegisterRequest{
+			req: &pb.RegisterRequest{
 				Email:    "invalid-email",
 				Password: "password123",
 			},
@@ -98,7 +97,7 @@ func TestGRPCServer_Register(t *testing.T) {
 		},
 		{
 			name: "empty password",
-			req: Request{
+			req: &pb.RegisterRequest{
 				Email:    "test@example.com",
 				Password: "",
 			},
@@ -134,7 +133,16 @@ func TestGRPCServer_Login(t *testing.T) {
 	conn := grpcTestServer.ClientConn()
 	defer conn.Close()
 
-	client := NewAuthServiceClient(conn)
+	client := pb.NewAuthServiceClient(conn)
+
+	// Сначала регистрируем пользователя
+	ctx := context.Background()
+	registerReq := &pb.RegisterRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+	_, err := client.Register(ctx, registerReq)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -197,6 +205,16 @@ func TestGRPCServer_ValidateToken(t *testing.T) {
 
 	client := pb.NewAuthServiceClient(conn)
 
+	// Получаем валидный токен через регистрацию
+	ctx := context.Background()
+	registerReq := &pb.RegisterRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+	registerResp, err := client.Register(ctx, registerReq)
+	require.NoError(t, err)
+	validToken := registerResp.Token
+
 	tests := []struct {
 		name    string
 		token   string
@@ -204,7 +222,7 @@ func TestGRPCServer_ValidateToken(t *testing.T) {
 	}{
 		{
 			name:    "valid token",
-			token:   "valid-token", // Здесь нужно будет добавить реальный токен
+			token:   validToken,
 			wantErr: false,
 		},
 		{
